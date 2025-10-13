@@ -132,6 +132,33 @@ mb_bwt_t *mb_bwt_init_from_raw(const uint32_t *raw, uint64_t len, uint64_t prima
 
 #define bwt_block(b, k) ((b)->bwt + ((k)>>7<<3))
 
+static inline int rank_aux1(uint64_t y, uint8_t c)
+{
+	// reduce nucleotide counting to bits counting
+	y = ((c&2)? y : ~y) >> 1 & ((c&1)? y : ~y) & 0x5555555555555555ull;
+	// count the number of 1s in y
+	y = (y & 0x3333333333333333ull) + (y >> 2 & 0x3333333333333333ull);
+	return ((y + (y >> 4)) & 0xf0f0f0f0f0f0f0full) * 0x101010101010101ull >> 56;
+}
+
+uint64_t mb_bwt_rank11(const mb_bwt_t *bwt, uint64_t k, uint8_t c)
+{
+	const uint64_t *p, *end;
+	uint64_t n;
+	if (k == 0) return 0;
+	if (k == bwt->seq_len + 1) return bwt->L2[c+1] - bwt->L2[c];
+	--k;
+	k -= (k >= bwt->primary); // because $ is not in bwt
+	p = bwt_block(bwt, k);
+	n = p[c];
+	p += 4;
+	end = p + ((k&0x7f) >> 5);
+	for (; p < end; ++p) n += rank_aux1(*p, c);
+	n += rank_aux1(*p << ((~k&0x1f) << 1), c);
+	if (c == 0) n -= ~k&0x1f;
+	return n;
+}
+
 static inline uint32_t rank_aux4(const mb_bwt_t *bwt, uint32_t x)
 {
 	return bwt->cnt_table[x&0xff] + bwt->cnt_table[x>>8&0xff] + bwt->cnt_table[x>>16&0xff] + bwt->cnt_table[x>>24];
@@ -142,7 +169,6 @@ void mb_bwt_rank1a(const mb_bwt_t *bwt, uint64_t k, uint64_t cnt[4])
 	const uint32_t *q, *end;
 	const uint64_t *p;
 	uint32_t x, tmp;
-
 	if (k == 0) {
 		memset(cnt, 0, 4 * sizeof(uint64_t));
 		return;
@@ -158,66 +184,6 @@ void mb_bwt_rank1a(const mb_bwt_t *bwt, uint64_t k, uint64_t cnt[4])
 	x += rank_aux4(bwt, tmp) - (~k&0xf);
 	cnt[0] += x&0xff, cnt[1] += x>>8&0xff, cnt[2] += x>>16&0xff, cnt[3] += x>>24;
 }
-/*
-static inline int rank_aux1(uint64_t y, uint8_t c)
-{
-	// reduce nucleotide counting to bits counting
-	y = ((c&2)? y : ~y) >> 1 & ((c&1)? y : ~y) & 0x5555555555555555ull;
-	// count the number of 1s in y
-	y = (y & 0x3333333333333333ull) + (y >> 2 & 0x3333333333333333ull);
-	return ((y + (y >> 4)) & 0xf0f0f0f0f0f0f0full) * 0x101010101010101ull >> 56;
-}
-
-mb_uint_t mb_bwt_rank11(const mb_bwt_t *bwt, mb_uint_t k0, uint8_t c)
-{
-	mb_uint_t n, k;
-	uint32_t *p, *end;
-
-	if (k0 == 0) return 0;
-	if (k0 == bwt->seq_len + 1) return bwt->L2[c+1] - bwt->L2[c];
-	k = k0 - 1;
-	k -= (k >= bwt->primary); // because $ is not in bwt
-
-	// retrieve Occ at k/OCC_INTERVAL
-	p = bwt_occ_intv(bwt, k);
-	n = ((mb_uint_t*)p)[c];
-	p += sizeof(mb_uint_t); // jump to the start of the first BWT cell; sizeof(mb_uint_t) = sizeof(mb_uint_t) * 4 / sizeof(uint32_t)
-
-	// calculate Occ up to the last k/32
-	end = p + (((k>>5) - ((k&~OCC_INTV_MASK)>>5))<<1);
-	for (; p < end; p += 2) n += rank_aux1((uint64_t)p[0]<<32 | p[1], c);
-
-	// calculate Occ
-	n += rank_aux1(((uint64_t)p[0]<<32 | p[1]) & ~((1ull<<((~k&31)<<1)) - 1), c);
-	if (c == 0) n -= ~k&31; // corrected for the masked bits
-
-	return n;
-}
-
-static inline uint32_t rank_aux4(const mb_bwt_t *bwt, uint32_t x)
-{
-	return bwt->cnt_table[x&0xff] + bwt->cnt_table[x>>8&0xff] + bwt->cnt_table[x>>16&0xff] + bwt->cnt_table[x>>24];
-}
-
-void mb_bwt_rank1a(const mb_bwt_t *bwt, mb_uint_t k0, mb_uint_t cnt[4])
-{
-	mb_uint_t x, k;
-	uint32_t *p, tmp, *end;
-
-	memset(cnt, 0, 4 * sizeof(mb_uint_t));
-	if (k0 == 0) return;
-	k = k0 - 1;
-	k -= (k >= bwt->primary); // because $ is not in bwt
-	p = bwt_occ_intv(bwt, k);
-	memcpy(cnt, p, 4 * sizeof(mb_uint_t));
-	p += sizeof(mb_uint_t); // sizeof(mb_uint_t) = 4*(sizeof(mb_uint_t)/sizeof(uint32_t))
-	end = p + ((k>>4) - ((k&~OCC_INTV_MASK)>>4)); // this is the end point of the following loop
-	for (x = 0; p < end; ++p) x += rank_aux4(bwt, *p);
-	tmp = *p & ~((1U<<((~k&15)<<1)) - 1);
-	x += rank_aux4(bwt, tmp) - (~k&15);
-	cnt[0] += x&0xff; cnt[1] += x>>8&0xff; cnt[2] += x>>16&0xff; cnt[3] += x>>24;
-}
-*/
 /*
 // an analogy to bwt_occ() but more efficient, requiring k <= l
 void bwt_2occ(const bwt_t *bwt, mb_uint_t k, mb_uint_t l, uint8_t c, mb_uint_t *ok, mb_uint_t *ol)
