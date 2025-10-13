@@ -12,6 +12,7 @@ typedef struct {
 	mb_uint_t seq_len; // sequence length
 	mb_uint_t bwt_size; // size of mb_bwt_t::bwt in bytes
 	uint64_t *bwt; // BWT
+	uint32_t cnt_table[256];
 	// suffix array
 	int32_t sa_intv, sa_intv_bit;
 	mb_uint_t n_sa;

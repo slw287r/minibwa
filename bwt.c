@@ -54,9 +54,23 @@
  * Basic operations *
  ********************/
 
+static void bwt_gen_cnt_table(uint32_t cnt[256])
+{
+	int i, j;
+	for (i = 0; i != 256; ++i) {
+		uint32_t x = 0;
+		for (j = 0; j != 4; ++j)
+			x |= (((i&3) == j) + ((i>>2&3) == j) + ((i>>4&3) == j) + (i>>6 == j)) << (j<<3);
+		cnt[i] = x;
+	}
+}
+
 mb_bwt_t *mb_bwt_init(void)
 {
-	return mb_calloc(mb_bwt_t, 1);
+	mb_bwt_t *bwt;
+	bwt = mb_calloc(mb_bwt_t, 1);
+	bwt_gen_cnt_table(bwt->cnt_table);
+	return bwt;
 }
 
 void mb_bwt_destroy(mb_bwt_t *bwt)
@@ -74,21 +88,21 @@ void mb_bwt_destroy(mb_bwt_t *bwt)
 
 mb_bwt_t *mb_bwt_init_from_raw(const uint32_t *raw, uint64_t len, uint64_t primary)
 {
-	uint64_t bwt_len, occ_len, c[4], x[4], i, k, i0;
+	uint64_t bwt_len, occ_len, c[4], x[4], i, j, k, i0;
 	mb_bwt_t *bwt;
 
 	bwt = mb_bwt_init();
 	bwt->primary = primary;
 	bwt->seq_len = len;
-	bwt_len = (len + 63) / 64 * 4;
-	occ_len = ((len + 63) / 64 + 1) * 4; // +1 for the final counts
+	bwt_len = (len + 127) / 128 * 4;
+	occ_len = ((len + 127) / 128 + 1) * 4; // +1 for the final counts
 	bwt->bwt_size = (bwt_len + occ_len) * sizeof(uint64_t);
 	bwt->bwt = mb_calloc(uint64_t, bwt_len + occ_len);
 
 	memset(c, 0, 32);
 	for (i = k = 0; i < len; ++i) {
 		uint8_t a = raw_B00(raw, i);
-		if ((i & 0x3f) == 0) {
+		if ((i & 0x7f) == 0) {
 			if (i > 0) {
 				memcpy(&bwt->bwt[k], x, 32);
 				k += 4;
@@ -98,8 +112,9 @@ mb_bwt_t *mb_bwt_init_from_raw(const uint32_t *raw, uint64_t len, uint64_t prima
 			memset(x, 0, 32);
 			i0 = i;
 		}
+		j = i - i0;
 		++c[a];
-		x[a] |= 1ULL << (i - i0);
+		x[j>>5] |= (uint64_t)a << ((j&0x1f)<<1);
 	}
 	// the last block
 	memcpy(&bwt->bwt[k], x, 32);
@@ -117,25 +132,30 @@ mb_bwt_t *mb_bwt_init_from_raw(const uint32_t *raw, uint64_t len, uint64_t prima
  * Rank *
  ********/
 
-#define bwt_block(b, k) ((b)->bwt + ((k)>>6<<3))
+#define bwt_block(b, k) ((b)->bwt + ((k)>>7<<3))
+
+static inline uint32_t rank_aux4(const mb_bwt_t *bwt, uint32_t x)
+{
+	return bwt->cnt_table[x&0xff] + bwt->cnt_table[x>>8&0xff] + bwt->cnt_table[x>>16&0xff] + bwt->cnt_table[x>>24];
+}
 
 void mb_bwt_rank1a(const mb_bwt_t *bwt, uint64_t k, uint64_t cnt[4])
 {
+	const uint32_t *q, *end;
 	const uint64_t *p;
-	uint64_t mask;
-	int r;
-	k -= (k >= bwt->primary);
-	p = bwt_block(bwt, k);
-	memcpy(cnt, p, 32);
-	p += 4;
-	r = k & 0x3f;
-	mask = (1ULL << r) - 1;
-	cnt[0] += __builtin_popcountll(p[0] & mask);
-	cnt[1] += __builtin_popcountll(p[1] & mask);
-	cnt[2] += __builtin_popcountll(p[2] & mask);
-	cnt[3] += __builtin_popcountll(p[3] & mask);
-}
+	uint32_t x, tmp;
 
+	k -= (k >= bwt->primary); // because $ is not in bwt
+	p = bwt_block(bwt, k);
+	memcpy(cnt, p, 4 * sizeof(uint64_t));
+	p += 4; // skip the count array
+	q = (const uint32_t*)p; // 8 32-bit integers in each block
+	end = q + ((k&0x7f) >> 4);
+	for (x = 0; q < end; ++q) x += rank_aux4(bwt, *q);
+	tmp = *q >> ((~k&15)<<1);
+	x += rank_aux4(bwt, tmp) - (~k&15);
+	cnt[0] += x&0xff, cnt[1] += x>>8&0xff, cnt[2] += x>>16&0xff, cnt[3] += x>>24;
+}
 /*
 static inline int rank_aux1(uint64_t y, uint8_t c)
 {
