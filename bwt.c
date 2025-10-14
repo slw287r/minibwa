@@ -66,7 +66,7 @@ mb_bwt_t *mb_bwt_init(void)
 void mb_bwt_destroy(mb_bwt_t *bwt)
 {
 	if (bwt == 0) return;
-	free(bwt->sa); free(bwt->bwt);
+	free(bwt->sa); free(bwt->data);
 	free(bwt);
 }
 
@@ -76,28 +76,34 @@ void mb_bwt_destroy(mb_bwt_t *bwt)
 
 #define raw_B00(b, k) ((b)[(k)>>4]>>((~(k)&0xf)<<1)&3)
 
+static uint64_t mb_bwt_data_len(uint64_t len)
+{
+	uint64_t bwt_len, occ_len;
+	bwt_len = (len + 127) / 128 * 4;
+	occ_len = ((len + 127) / 128 + 1) * 4; // +1 for the final counts
+	return bwt_len + occ_len;
+}
+
 mb_bwt_t *mb_bwt_init_from_raw(const uint32_t *raw, uint64_t len, uint64_t primary)
 {
-	uint64_t bwt_len, occ_len, c[4], x[4], i, k;
+	uint64_t c[4], x[4], i, k;
 	mb_bwt_t *bwt;
 
 	bwt = mb_bwt_init();
 	bwt->primary = primary;
 	bwt->seq_len = len;
-	bwt_len = (len + 127) / 128 * 4;
-	occ_len = ((len + 127) / 128 + 1) * 4; // +1 for the final counts
-	bwt->bwt_size = (bwt_len + occ_len) * sizeof(uint64_t);
-	bwt->bwt = mb_calloc(uint64_t, bwt_len + occ_len);
+	bwt->data_len = mb_bwt_data_len(len);
+	bwt->data = mb_calloc(uint64_t, bwt->data_len);
 
 	memset(c, 0, 32);
 	for (i = k = 0; i < len; ++i) {
 		uint8_t a = raw_B00(raw, i);
 		if ((i & 0x7f) == 0) {
 			if (i > 0) {
-				memcpy(&bwt->bwt[k], x, 32);
+				memcpy(&bwt->data[k], x, 32);
 				k += 4;
 			}
-			memcpy(&bwt->bwt[k], c, 32);
+			memcpy(&bwt->data[k], c, 32);
 			k += 4;
 			memset(x, 0, 32);
 		}
@@ -105,11 +111,11 @@ mb_bwt_t *mb_bwt_init_from_raw(const uint32_t *raw, uint64_t len, uint64_t prima
 		x[(i&0x7f)>>5] |= (uint64_t)a << ((i&0x1f)<<1); // compatible with little endian
 	}
 	// the last block
-	memcpy(&bwt->bwt[k], x, 32);
+	memcpy(&bwt->data[k], x, 32);
 	k += 4;
-	memcpy(&bwt->bwt[k], c, 32);
+	memcpy(&bwt->data[k], c, 32);
 	k += 4;
-	assert(k * sizeof(uint64_t) == bwt->bwt_size);
+	assert(k == bwt->data_len);
 	for (i = 0, bwt->L2[0] = 0; i < 4; ++i)
 		bwt->L2[i+1] = bwt->L2[i] + c[i];
 	assert(bwt->L2[4] == len);
@@ -120,7 +126,7 @@ mb_bwt_t *mb_bwt_init_from_raw(const uint32_t *raw, uint64_t len, uint64_t prima
  * Rank *
  ********/
 
-#define bwt_block(b, k) ((b)->bwt + ((k)>>7<<3))
+#define bwt_block(b, k) ((b)->data + ((k)>>7<<3))
 
 static inline int rank_aux1(uint64_t y, uint8_t c)
 {
@@ -455,6 +461,20 @@ mb_bwt_t *mb_bwt_load_raw(const char *fn)
 	free(raw);
 	return bwt;
 }
+
+void mb_bwt_save(const char *fn, const mb_bwt_t *bwt)
+{
+	FILE *fp;
+	uint32_t dummy = 0;
+	fp = fopen(fn, "wb");
+	fwrite(MB_MAGIC, 1, 4, fp);
+	fwrite(&dummy, 4, 1, fp);
+	fwrite(&bwt->primary, 8, 1, fp);
+	fwrite(&bwt->L2[1], 8, 4, fp);
+	fwrite(bwt->data, 8, bwt->data_len, fp);
+	fclose(fp);
+}
+
 /*
 void mb_bwt_dump_sa(const char *fn, const mb_bwt_t *bwt)
 {

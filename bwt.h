@@ -4,12 +4,14 @@
 #include <stdint.h>
 #include <stddef.h>
 
+#define MB_MAGIC "MBW\1"
+
 typedef struct {
 	uint64_t primary; // S^{-1}(0), or the primary index of BWT
 	uint64_t L2[5]; // C(), cumulative count
 	uint64_t seq_len; // sequence length
-	uint64_t bwt_size; // size of mb_bwt_t::bwt in bytes
-	uint64_t *bwt; // BWT
+	uint64_t data_len;
+	uint64_t *data; // BWT
 	uint32_t cnt_table[256];
 	// suffix array
 	int32_t sa_intv, sa_intv_bit;
