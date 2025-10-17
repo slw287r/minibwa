@@ -7,6 +7,7 @@
 
 #define MB_VERSION "0.0"
 
+int main_index(int argc, char *argv[]);
 int main_fa2bit(int argc, char *argv[]);
 int main_raw2bwt(int argc, char *argv[]);
 int main_test(int argc, char *argv[]);
@@ -35,6 +36,7 @@ int main(int argc, char *argv[])
 	int ret = 0;
 	kom_realtime();
 	if (argc == 1) return usage(stdout);
+	else if (strcmp(argv[1], "index") == 0) ret = main_index(argc-1, argv+1);
 	else if (strcmp(argv[1], "fa2bit") == 0) ret = main_fa2bit(argc-1, argv+1);
 	else if (strcmp(argv[1], "genraw") == 0) ret = main_genraw(argc-1, argv+1);
 	else if (strcmp(argv[1], "raw2bwt") == 0) ret = main_raw2bwt(argc-1, argv+1);
