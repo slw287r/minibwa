@@ -5,9 +5,11 @@
 #include "sys.h"
 #include "utils.h"
 #include "ketopt.h"
+#include "l2bit.h"
 
 #define MB_VERSION "0.0"
 
+int main_fato2bit(int argc, char *argv[]);
 int main_raw2bwt(int argc, char *argv[]);
 int main_test(int argc, char *argv[]);
 
@@ -15,6 +17,7 @@ static int usage(FILE *fp)
 {
 	fprintf(fp, "Usage: minibwt <command> <arguments>\n");
 	fprintf(fp, "Commands:\n");
+	fprintf(fp, "  fato2bit   convert FASTA to long-2-bit format\n");
 	fprintf(fp, "  raw2bwt    recode bwtgen raw BWT\n");
 	fprintf(fp, "  version    print the version number\n");
 	return fp == stdout? 0 : 1;
@@ -25,6 +28,7 @@ int main(int argc, char *argv[])
 	int ret = 0;
 	mb_realtime();
 	if (argc == 1) return usage(stdout);
+	else if (strcmp(argv[1], "fato2bit") == 0) return main_fato2bit(argc-1, argv+1);
 	else if (strcmp(argv[1], "raw2bwt") == 0) ret = main_raw2bwt(argc-1, argv+1);
 	else if (strcmp(argv[1], "test") == 0) ret = main_test(argc-1, argv+1);
 	else if (strcmp(argv[1], "version") == 0) {
@@ -43,6 +47,25 @@ int main(int argc, char *argv[])
 			fprintf(stderr, " %s", argv[i]);
 		fprintf(stderr, "\n[M::%s] Real time: %.3f sec; CPU: %.3f sec; Peak RSS: %.3f GB\n", __func__, mb_realtime(), mb_cputime(), mb_peakrss() / 1024.0 / 1024.0 / 1024.0);
 	}
+	return 0;
+}
+
+int main_fato2bit(int argc, char *argv[])
+{
+	l2b_t *l2b;
+	uint64_t seed = 11;
+	ketopt_t o = KETOPT_INIT;
+	int c;
+	while ((c = ketopt(&o, argc, argv, 1, "s:", 0)) >= 0) {
+		if (c == 's') seed = atol(o.arg);
+	}
+	if (argc - o.ind < 2) {
+		fprintf(stderr, "Usage: minibwa fa2twobit [-s %lu] <in.fa> <out.l2b>\n", (unsigned long)seed);
+		return 1;
+	}
+	l2b = l2b_import(argv[o.ind], seed);
+	l2b_save(argv[o.ind+1], l2b);
+	l2b_destroy(l2b);
 	return 0;
 }
 

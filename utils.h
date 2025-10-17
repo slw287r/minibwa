@@ -17,6 +17,7 @@ extern "C" {
 #endif
 
 void mb_panic(const char *fn, const char *msg);
+uint64_t mb_read_huge(FILE *fp, uint64_t size, void *ptr);
 
 static inline uint64_t mb_splitmix64(uint64_t *x)
 {

@@ -4,7 +4,7 @@ CFLAGS=		-std=c99 -g -Wall -O3
 CXXFLAGS=	$(CFLAGS)
 CPPFLAGS=
 INCLUDES=
-OBJS=		utils.o kalloc.o sys.o bwt.o
+OBJS=		utils.o kalloc.o sys.o bwt.o l2bit.o
 PROG=		minibwa
 LIBS=		-lpthread -lz -lm
 
