@@ -6,7 +6,34 @@
 #include "kseq.h"
 KSEQ_INIT(gzFile, gzread);
 
-static void l2b_add_seq(l2b_t *l2b, uint64_t len, const char *seq, const char *name, const char *comm, uint64_t *rng)
+static void l2b_format_seq(uint64_t len, char *seq, uint64_t *rng)
+{
+	uint64_t i;
+	for (i = 0; i < len; ++i) {
+		int b = (uint8_t)seq[i];
+		uint8_t c = hl_nt4_table[b];
+		if (c > 4) c = 4;
+		if (c == 4) c |= hl_splitmix64(rng) & 3;
+		if (b < 'A' || b > 'Z') c |= 1<<3;
+		seq[i] = c;
+	}
+}
+
+static void l2b_revcomp_formatted(uint64_t len, uint8_t *seq) // reverse complement in place
+{
+	uint64_t i;
+	for (i = 0; i < len>>1; ++i) {
+		uint8_t s = seq[i], t = seq[len - i - 1];
+		seq[len - i - 1] = (s&0xc0) | (3 - (s&3));
+		seq[i] = (t&0xc0) | (3 - (t&3));
+	}
+	if (len&1) {
+		uint8_t t = seq[len>>1];
+		seq[len>>1] = (t&0xc0) | (3 - (t&3));
+	}
+}
+
+static void l2b_add_seq(l2b_t *l2b, uint64_t len, const uint8_t *seq, const char *name, const char *comm, uint64_t *rng)
 {
 	uint64_t i, ambi_len, mask_len, off, m_pac_old;
 	l2b_ctg_t *ctg;
@@ -27,9 +54,8 @@ static void l2b_add_seq(l2b_t *l2b, uint64_t len, const char *seq, const char *n
 		memset(&l2b->pac[m_pac_old], 0, (l2b->m_pac - m_pac_old) * 8);
 
 	for (i = 0, ambi_len = mask_len = 0; i < len; ++i) {
-		int b = (uint8_t)seq[i];
-		uint64_t c = hl_nt4_table[b], x = off + i;
-		if (b < 'A' || b > 'Z') {
+		uint64_t c = seq[i], x = off + i;
+		if (c & 1<<3) { // soft-masked base
 			++mask_len;
 		} else if (mask_len > 0) {
 			hl_grow(l2b_intv_t, l2b->mask, l2b->n_mask, l2b->m_mask);
@@ -38,9 +64,8 @@ static void l2b_add_seq(l2b_t *l2b, uint64_t len, const char *seq, const char *n
 			l2b->n_mask++;
 			mask_len = 0;
 		}
-		if (c >= 4) {
+		if (c & 1<<2) { // ambiguous base
 			++ambi_len;
-			c = hl_splitmix64(rng) & 3;
 		} else if (ambi_len > 0) {
 			hl_grow(l2b_intv_t, l2b->ambi, l2b->n_ambi, l2b->m_ambi);
 			l2b->ambi[l2b->n_ambi].st = x - ambi_len;
@@ -48,7 +73,7 @@ static void l2b_add_seq(l2b_t *l2b, uint64_t len, const char *seq, const char *n
 			l2b->n_ambi++;
 			ambi_len = 0;
 		}
-		l2b->pac[x>>5] |= c << (x&0x1f)*2;
+		l2b->pac[x>>5] |= (c&3) << (x&0x1f)*2;
 	}
 }
 
@@ -82,7 +107,7 @@ static void l2b_collate_str(l2b_t *l2b)
 	}
 }
 
-l2b_t *l2b_import(const char *fn, uint64_t seed, int both_strand)
+l2b_t *l2b_import2(const char *fn, uint64_t seed, int both_strand)
 {
 	gzFile fp;
 	kseq_t *ks;
@@ -94,16 +119,22 @@ l2b_t *l2b_import(const char *fn, uint64_t seed, int both_strand)
 	ks = kseq_init(fp);
 	l2b = hl_calloc(l2b_t, 1);
 	while (kseq_read(ks) >= 0) {
-		l2b_add_seq(l2b, ks->seq.l, ks->seq.s, ks->name.s, ks->comment.l? ks->comment.s : 0, &rng);
+		l2b_format_seq(ks->seq.l, ks->seq.s, &rng);
+		l2b_add_seq(l2b, ks->seq.l, (uint8_t*)ks->seq.s, ks->name.s, ks->comment.l? ks->comment.s : 0, &rng);
 		if (both_strand) {
-			hl_revcomp(ks->seq.l, ks->seq.s);
-			l2b_add_seq(l2b, ks->seq.l, ks->seq.s, ks->name.s, ks->comment.l? ks->comment.s : 0, &rng);
+			l2b_revcomp_formatted(ks->seq.l, (uint8_t*)ks->seq.s);
+			l2b_add_seq(l2b, ks->seq.l, (uint8_t*)ks->seq.s, ks->name.s, ks->comment.l? ks->comment.s : 0, &rng);
 		}
 	}
 	kseq_destroy(ks);
 	gzclose(fp);
 	l2b_collate_str(l2b);
 	return l2b;
+}
+
+l2b_t *l2b_import(const char *fn, uint64_t seed)
+{
+	return l2b_import2(fn, seed, 0);
 }
 
 void l2b_destroy(l2b_t *l2b)

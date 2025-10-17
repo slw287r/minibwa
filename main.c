@@ -63,7 +63,7 @@ int main_fa2bit(int argc, char *argv[])
 		fprintf(stderr, "Usage: minibwa fa2bit [-s %lu] <in.fa> <out.l2b>\n", (unsigned long)seed);
 		return 1;
 	}
-	l2b = l2b_import(argv[o.ind], seed, 0);
+	l2b = l2b_import(argv[o.ind], seed);
 	l2b_save(argv[o.ind+1], l2b);
 	l2b_destroy(l2b);
 	return 0;
