@@ -65,7 +65,7 @@ int main(int argc, char *argv[])
 	return 0;
 }
 
-typedef enum { MB_BENCH_2A } mb_bench_type_t;
+typedef enum { MB_BENCH_2A, MB_BENCH_SA } mb_bench_type_t;
 
 int main_bench(int argc, char *argv[])
 {
@@ -80,6 +80,11 @@ int main_bench(int argc, char *argv[])
 	while ((c = ketopt(&o, argc, argv, 1, "pn:b:", 0)) >= 0) {
 		if (c == 'n') n = kom_parse_num(o.arg, 0);
 		else if (c == 'p') print_val = 1;
+		else if (c == 'b') {
+			if (strcmp(o.arg, "2a") == 0) type = MB_BENCH_2A;
+			else if (strcmp(o.arg, "sa") == 0) type = MB_BENCH_SA;
+			else kom_assert(0, "unknown type");
+		}
 	}
 	if (argc - o.ind < 1) {
 		fprintf(stderr, "Usage: minibwa bench [options] <in.mbw>\n");
@@ -101,6 +106,13 @@ int main_bench(int argc, char *argv[])
 			cs = cs * cntk[1] + cntl[0];
 			if (print_val) printf("%lld\n", cntk[1]);
 		}
+	} else if (type == MB_BENCH_SA) {
+		for (i = 0; i < n; ++i) {
+			uint64_t s, k = kom_splitmix64(&x) % bwt->seq_len;
+			s = mb_bwt_sa(bwt, k);
+			cs = (cs >> 32) ^ s;
+			if (print_val) printf("%lld\n", s);
+		}
 	}
 	fprintf(stderr, "checksum = %lx\n", (unsigned long)cs);
 	fprintf(stderr, "t = %.3f\n", kom_cputime() - t);
@@ -110,34 +122,5 @@ int main_bench(int argc, char *argv[])
 
 int main_test(int argc, char *argv[])
 {
-	uint64_t x = 11;
-	int64_t i, n = 10000;
-	mb_bwt_t *bwt;
-	if (argc == 1) {
-		fprintf(stderr, "Usage: minibwa test <in.bwt>\n");
-		return 1;
-	}
-	if (argc >= 3) n = atol(argv[2]);
-
-	bwt = mb_bwt_load(argv[1]);
-	if (n > 0) {
-		double t = kom_cputime();
-		for (i = 0; i < n; ++i) {
-			uint64_t k = kom_splitmix64(&x) % bwt->seq_len;
-			uint64_t l = kom_splitmix64(&x) % bwt->seq_len;
-			uint64_t cntk[4], cntl[4];
-			mb_bwt_rank2a(bwt, k, l, cntk, cntl);
-			//printf("%lld\n", cntk[1]);
-		}
-		fprintf(stderr, "t = %.3f\n", kom_cputime() - t);
-	} else {
-		uint64_t k = 10, cnt[4];
-		int c;
-		mb_bwt_rank1a(bwt, k, cnt);
-		for (c = 0; c < 4; ++c)
-			printf("%lld\n", cnt[c]);
-		//uint64_t j; for (j = 0; j < bwt->n_sa; ++j) printf("%lld\n", bwt->sa[j]);
-	}
-	mb_bwt_destroy(bwt);
 	return 0;
 }
