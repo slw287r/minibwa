@@ -47,7 +47,7 @@ int64_t mb_bwt_smem(void *km, const mb_bwt_t *f, int64_t min_len, int64_t min_oc
 
 void mb_bwt_gen_sa(mb_bwt_t *bwt, uint32_t sa_bit);
 uint64_t mb_bwt_sa(const mb_bwt_t *bwt, uint64_t k);
-void mb_bwt_sa2(void *km, const mb_bwt_t *bwt, int64_t n, uint64_t *x);
+void mb_bwt_sa_batch(void *km, const mb_bwt_t *bwt, int64_t n, uint64_t *x);
 
 static inline void mb_bwt_set_intv(const mb_bwt_t *bwt, int c, mb_sai_t *ik)
 {

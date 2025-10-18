@@ -98,6 +98,11 @@ mb_bwt_t *mb_bwt_init_from_raw(int is_byte, const void *raw_, uint64_t len, uint
 
 #define bwt_block(b, k) ((b)->data + ((k)>>7<<3))
 
+static inline void mb_bwt_block_prefetch(const mb_bwt_t *bwt, uint64_t k)
+{
+	if (k > 0) __builtin_prefetch(bwt_block(bwt, k - 1 - (k - 1 >= bwt->primary)));
+}
+
 static inline int rank_aux1(uint64_t y, uint8_t c)
 {
 	// reduce nucleotide counting to bits counting
@@ -156,9 +161,9 @@ void mb_bwt_rank2a(const mb_bwt_t *bwt, uint64_t k, uint64_t l, uint64_t cntk[4]
 	uint64_t k1 = k - 1, l1 = l - 1;
 	k1 -= (k1 >= bwt->primary);
 	l1 -= (l1 >= bwt->primary);
-	if (k > 0) __builtin_prefetch(bwt_block(bwt, k1));
+	mb_bwt_block_prefetch(bwt, k);
 	if (k1>>7 != l1>>7 || k == 0 || l == 0) {
-		if (l > 0) __builtin_prefetch(bwt_block(bwt, l1));
+		mb_bwt_block_prefetch(bwt, l);
 		mb_bwt_rank1a(bwt, k, cntk);
 		mb_bwt_rank1a(bwt, l, cntl);
 	} else {
@@ -295,7 +300,7 @@ uint64_t mb_bwt_sa(const mb_bwt_t *bwt, uint64_t k)
 	return sa + bwt->sa[k >> bwt->sa_bit];
 }
 
-void mb_bwt_sa2(void *km, const mb_bwt_t *bwt, int64_t n, uint64_t *x)
+void mb_bwt_sa_batch(void *km, const mb_bwt_t *bwt, int64_t n, uint64_t *x)
 {
 	uint64_t mask = (1ULL<<bwt->sa_bit) - 1;
 	int64_t i, step = 0, r = n;
@@ -306,7 +311,7 @@ void mb_bwt_sa2(void *km, const mb_bwt_t *bwt, int64_t n, uint64_t *x)
 	for (step = 0; r; ++step) {
 		int64_t r0;
 		for (i = 0; i < r; ++i) {
-			if (i + 1 < r) __builtin_prefetch(bwt_block(bwt, z[i+1].x));
+			if (i + 1 < r) mb_bwt_block_prefetch(bwt, z[i+1].x);
 			z[i].x = bwt_invPsi(bwt, z[i].x);
 		}
 		for (i = 0; i < r; ++i)

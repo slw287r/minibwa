@@ -94,7 +94,7 @@ int main_bench(int argc, char *argv[])
 		fprintf(stderr, "Usage: minibwa bench [options] <in.mbw>\n");
 		fprintf(stderr, "Options:\n");
 		fprintf(stderr, "  -b STR         type: 2a, sa or msa [2a]\n");
-		fprintf(stderr, "  -n NUM         number of data points [10k]\n");
+		fprintf(stderr, "  -n NUM         number of data points [1m]\n");
 		fprintf(stderr, "  -v INT         interval size for msa [%d]\n", intv);
 		fprintf(stderr, "  -p             print results for each data point\n");
 		return 1;
@@ -129,11 +129,9 @@ int main_bench(int argc, char *argv[])
 			}
 			#else
 			uint64_t sa[intv], n_sa = l - k;
-			for (j = 0; j < n_sa; ++j)
-				sa[j] = k + j;
-			mb_bwt_sa2(0, bwt, l - k, sa);
-			for (j = 0; j < n_sa; ++j)
-				xor ^= sa[j];
+			for (j = 0; j < n_sa; ++j) sa[j] = k + j;
+			mb_bwt_sa_batch(0, bwt, l - k, sa);
+			for (j = 0; j < n_sa; ++j) xor ^= sa[j];
 			#endif
 			cs = cs * 0xbf58476d1ce4e5b9ULL ^ xor;
 			if (print_val) printf("%lld\n", xor);
@@ -202,7 +200,7 @@ int main_seed(int argc, char *argv[])
 				#else
 				for (j = 0; j < a[i].size; ++j)
 					sa[j] = a[i].x[0] + j;
-				mb_bwt_sa2(0, bwt, a[i].size, sa);
+				mb_bwt_sa_batch(0, bwt, a[i].size, sa);
 				#endif
 				for (j = 0; j < n_sa; ++j)
 					kom_sprintf_lite(&out, "\t%ld", sa[j]);
