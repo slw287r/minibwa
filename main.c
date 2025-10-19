@@ -4,8 +4,7 @@
 #include "kommon.h"
 #include "mbpriv.h"
 #include "ketopt.h"
-
-#define MB_VERSION "0.0"
+#include "minibwa.h"
 
 int main_index(int argc, char *argv[]);
 int main_seed(int argc, char *argv[]);

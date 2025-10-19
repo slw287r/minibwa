@@ -1,11 +1,10 @@
 #include <stdlib.h>
 #include <assert.h>
 #include <stdio.h>
-#include "bwt.h"
-#include "l2bit.h"
 #include "libsais64.h"
 #include "kommon.h"
 #include "ketopt.h"
+#include "mbpriv.h"
 
 void mb_bwtgen(const char *fn_pac, const char *fn_bwt, int block_size);
 
@@ -219,4 +218,26 @@ int main_index(int argc, char *argv[])
 	mb_bwt_destroy(bwt);
 	free(fn_bwt); free(fn_l2b);
 	return 0;
+}
+
+mb_idx_t *mb_idx_load(const char *prefix)
+{
+	char *buf;
+	mb_idx_t *idx;
+	idx = kom_calloc(mb_idx_t, 1);
+	buf = kom_calloc(char, strlen(prefix) + 5);
+	strcat(strcpy(buf, prefix), ".l2b");
+	idx->l2b = l2b_load(buf);
+	strcat(strcpy(buf, prefix), ".bwt");
+	idx->bwt = mb_bwt_load(buf);
+	free(buf);
+	return idx;
+}
+
+void mb_idx_destroy(mb_idx_t *idx)
+{
+	if (idx == 0) return;
+	mb_bwt_destroy(idx->bwt);
+	l2b_destroy(idx->l2b);
+	free(idx);
 }

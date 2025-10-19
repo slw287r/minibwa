@@ -30,11 +30,13 @@ typedef struct {
 extern "C" {
 #endif
 
-l2b_t *l2b_import(const char *fn, uint64_t seed);
 l2b_t *l2b_load(const char *fn);
+int64_t l2b_get_coor(const l2b_t *l2b, uint64_t pos, int64_t *cid);
+void l2b_destroy(l2b_t *l2b);
+
+l2b_t *l2b_import(const char *fn, uint64_t seed);
 int l2b_save(const char *fn, const l2b_t *l2b);
 int l2b_save_pac(const char *fn, const l2b_t *l2b, int both_strand);
-void l2b_destroy(l2b_t *l2b);
 
 static inline int l2b_get0(const l2b_t *l2b, uint64_t i)
 {

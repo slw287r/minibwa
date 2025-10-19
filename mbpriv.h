@@ -1,8 +1,14 @@
 #ifndef MBPRIV_H
 #define MBPRIV_H
 
+#include "minibwa.h"
 #include "l2bit.h"
 #include "bwt.h"
+
+struct mb_idx_s {
+	l2b_t *l2b;
+	mb_bwt_t *bwt;
+};
 
 #ifdef __cplusplus
 extern "C" {
