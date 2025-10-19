@@ -4,7 +4,6 @@
 #include "kommon.h"
 #include "mbpriv.h"
 #include "ketopt.h"
-#include "minibwa.h"
 
 int main_index(int argc, char *argv[]);
 int main_seed(int argc, char *argv[]);
@@ -150,6 +149,7 @@ KSEQ_INIT(gzFile, gzread);
 
 int main_seed(int argc, char *argv[])
 {
+	mb_idx_t *idx;
 	mb_bwt_t *bwt;
 	ketopt_t o = KETOPT_INIT;
 	gzFile fp;
@@ -168,7 +168,7 @@ int main_seed(int argc, char *argv[])
 	}
 	if (max_occ < min_occ) max_occ = min_occ;
 	if (argc - o.ind < 2) {
-		fprintf(stderr, "Usage: minibwa seed [options] <in.mbw> <in.fq>\n");
+		fprintf(stderr, "Usage: minibwa seed [options] <idx-prefix> <in.fq>\n");
 		fprintf(stderr, "Options:\n");
 		fprintf(stderr, "  -l INT     min seed length [%d]\n", min_len);
 		fprintf(stderr, "  -s INT     min interval size [%d]\n", min_occ);
@@ -178,7 +178,8 @@ int main_seed(int argc, char *argv[])
 		return 1;
 	}
 
-	bwt = mb_bwt_load(argv[o.ind]);
+	idx = mb_idx_load(argv[o.ind]);
+	bwt = idx->bwt;
 	kom_assert(bwt, "failed to open the BWT file.");
 	fp = strcmp(argv[o.ind+1], "-")? gzopen(argv[o.ind+1], "rb") : gzdopen(0, "rb");
 	ks = kseq_init(fp);
@@ -198,7 +199,9 @@ int main_seed(int argc, char *argv[])
 			}
 		} while (x < ks->seq.l);
 		for (i = 0; i < n_a; ++i) {
+			int64_t len;
 			kom_sprintf_lite(&out, "EM\t%ld\t%ld\t%ld", a[i].info>>32, a[i].info&0xffffffffull, a[i].size);
+			len = (a[i].info&0xffffffffull) - (a[i].info>>32);
 			if (a[i].size <= max_size_out) {
 				int64_t j, n_sa = a[i].size;
 				if (use_sa1) {
@@ -209,8 +212,13 @@ int main_seed(int argc, char *argv[])
 						sa[j] = a[i].x[0] + j;
 					mb_bwt_sa_batch(0, bwt, a[i].size, sa);
 				}
-				for (j = 0; j < n_sa; ++j)
-					kom_sprintf_lite(&out, "\t%ld", sa[j]);
+				for (j = 0; j < n_sa; ++j) {
+					int rev;
+					int64_t cid, cst;
+					cid = l2b_intv2cid(idx->l2b, sa[j], sa[j] + len, &cst, &rev);
+					if (cid < 0) kom_sprintf_lite(&out, "\t.");
+					else kom_sprintf_lite(&out, "\t%s:%c%ld", idx->l2b->ctg[cid].name, "+-"[rev], cst + 1);
+				}
 			} else kom_sprintf_lite(&out, "\t*");
 			kom_sprintf_lite(&out, "\n");
 		}

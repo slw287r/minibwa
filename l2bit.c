@@ -6,21 +6,24 @@
 #include "kseq.h"
 KSEQ_INIT(gzFile, gzread);
 
-int64_t l2b_get_coor(const l2b_t *l2b, uint64_t pos, int64_t *cid)
+int64_t l2b_intv2cid(const l2b_t *l2b, uint64_t st, uint64_t en, int64_t *cst, int *rev)
 {
 	int64_t s, lo = 0, hi = l2b->n_ctg, mid;
-	assert(pos < l2b->tot_len * 2);
-	s = pos < l2b->tot_len? pos : l2b->tot_len * 2 - 1 - pos;
+	const l2b_ctg_t *ctg;
+	assert(st < en);
+	if (en > l2b->tot_len * 2) return -3;
+	if (st < l2b->tot_len && l2b->tot_len < en) return -2;
+	*rev = (st >= l2b->tot_len);
+	s = st < l2b->tot_len? st : l2b->tot_len * 2 - en;
 	while (lo < hi) {
-		const l2b_ctg_t *ctg;
 		mid = (lo + hi) / 2;
 		ctg = &l2b->ctg[mid];
 		if (ctg->off <= s && s < ctg->off + ctg->len) break;
 		else if (s < ctg->off) hi = mid;
 		else lo = mid;
 	}
-	*cid = mid;
-	return s - l2b->ctg[mid].off;
+	*cst = s - ctg->off;
+	return s + (en - st) <= ctg->off + ctg->len? mid : -1;
 }
 
 static void l2b_format_seq(uint64_t len, char *seq, uint64_t *rng)

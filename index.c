@@ -223,13 +223,22 @@ int main_index(int argc, char *argv[])
 mb_idx_t *mb_idx_load(const char *prefix)
 {
 	char *buf;
-	mb_idx_t *idx;
-	idx = kom_calloc(mb_idx_t, 1);
+	mb_idx_t *idx = 0;
+	l2b_t *l2b;
+	mb_bwt_t *bwt;
 	buf = kom_calloc(char, strlen(prefix) + 5);
 	strcat(strcpy(buf, prefix), ".l2b");
-	idx->l2b = l2b_load(buf);
-	strcat(strcpy(buf, prefix), ".bwt");
-	idx->bwt = mb_bwt_load(buf);
+	l2b = l2b_load(buf);
+	if (l2b == 0) goto end_idx_load;
+	strcat(strcpy(buf, prefix), ".mbw");
+	bwt = mb_bwt_load(buf);
+	if (bwt == 0) {
+		l2b_destroy(l2b);
+		goto end_idx_load;
+	}
+	idx = kom_calloc(mb_idx_t, 1);
+	idx->l2b = l2b, idx->bwt = bwt;
+end_idx_load:
 	free(buf);
 	return idx;
 }
