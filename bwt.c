@@ -210,7 +210,7 @@ void mb_bwt_extend(const mb_bwt_t *bwt, const mb_sai_t *ik, mb_sai_t ok[4], int 
 	ok[0].x[is_back] = ok[1].x[is_back] + tl[1];
 }
 
-int64_t mb_bwt_smem(const mb_bwt_t *f, int64_t min_len, int64_t min_occ, int64_t max_occ, uint32_t len, const uint8_t *q, int64_t x, mb_sai_t *p)
+int64_t mb_bwt_smem(const mb_bwt_t *f, uint32_t len, const uint8_t *q, int64_t x, int64_t min_len, int64_t min_occ, int64_t max_occ, mb_sai_t *p)
 {
 	int64_t i, j, xn, min_occ2;
 	mb_sai_t ik, ok[4];

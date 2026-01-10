@@ -19,6 +19,9 @@ extern "C" {
 // defined in bwtgen.c
 void mb_bwtgen(const char *fn_pac, const char *fn_bwt, int block_size);
 
+// defined in base-algo.c
+void mb_seed_intv(void *km, const mb_seedopt_t *opt, const mb_bwt_t *bwt, int32_t len, const uint8_t *seq, mb_sai_v *v);
+
 #ifdef __cplusplus
 }
 #endif

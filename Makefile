@@ -43,9 +43,11 @@ depend:
 # DO NOT DELETE
 
 QSufSort.o: QSufSort.h
+base-algo.o: bwt.h minibwa.h kalloc.h
 bseq.o: bseq.h kseq.h
 bwt.o: kommon.h kalloc.h bwt.h
 bwtgen.o: QSufSort.h
+fastmap.o: mbpriv.h minibwa.h l2bit.h bwt.h ketopt.h kommon.h kseq.h
 index.o: libsais64.h kommon.h ketopt.h mbpriv.h minibwa.h l2bit.h bwt.h
 kalloc.o: kalloc.h
 kommon.o: kommon.h
