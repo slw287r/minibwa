@@ -72,9 +72,14 @@ void mb_seed_intv(void *km, const mb_seedopt_t *opt, const mb_bwt_t *bwt, int32_
 		do {
 			x = mb_bwt_seed_greedy(bwt, en, seq, x, opt->min_len, opt->max_sub_occ * 2, &p);
 			if (p.size > v->a[i].size) {
-				mb_bwt_extend_eq(bwt, len, seq, &p);
-				Kgrow(km, mb_sai_t, v->a, v->n, v->m);
-				v->a[v->n++] = p;
+				int32_t to_add = 1;
+				if (v->n > 0 && p.size == v->a[v->n-1].size && (uint32_t)p.info <= (uint32_t)v->a[v->n-1].info)
+					to_add = 0;
+				if (to_add) {
+					mb_bwt_extend_eq(bwt, len, seq, &p);
+					Kgrow(km, mb_sai_t, v->a, v->n, v->m);
+					v->a[v->n++] = p;
+				}
 			}
 		} while (x < en);
 	}
