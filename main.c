@@ -12,8 +12,6 @@ int main_index(int argc, char *argv[]);
 int main_map(int argc, char *argv[]);
 int main_seed(int argc, char *argv[]);
 
-void mb_seed_intv(void *km, const mb_seedopt_t *opt, const mb_bwt_t *bwt, int32_t len, const uint8_t *seq, mb_sai_v *v);
-
 int main_fa2bit(int argc, char *argv[]);
 int main_raw2bwt(int argc, char *argv[]);
 int main_genraw(int argc, char *argv[]);
@@ -158,7 +156,7 @@ int main_bench(int argc, char *argv[])
 
 int main_seed(int argc, char *argv[])
 {
-	mb_mopt_t mopt;
+	mb_mopt_t mo;
 	mb_bwt_t *bwt;
 	gzFile fp;
 	kseq_t *ks;
@@ -171,7 +169,7 @@ int main_seed(int argc, char *argv[])
 		return 1;
 	}
 
-	mb_mopt_init(&mopt);
+	mb_mopt_init(&mo);
 
 	bwt = mb_bwt_load(argv[1]);
 	if (!bwt) {
@@ -197,7 +195,7 @@ int main_seed(int argc, char *argv[])
 			seq_enc[i] = kom_nt4_table[(uint8_t)ks->seq.s[i]];
 
 		v.n = 0;
-		mb_seed_intv(0, &mopt.sopt, bwt, ks->seq.l, seq_enc, &v);
+		mb_seed_intv(0, bwt, ks->seq.l, seq_enc, mo.min_len, mo.max_sub_occ, &v);
 		for (i = 0; i < v.n; ++i) {
 			uint32_t st = v.a[i].info >> 32;
 			uint32_t en = (uint32_t)v.a[i].info;

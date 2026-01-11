@@ -49,14 +49,14 @@ static int32_t mb_bwt_seed_greedy(const mb_bwt_t *bwt, int32_t len, const uint8_
 	return len;
 }
 
-void mb_seed_intv(void *km, const mb_seedopt_t *opt, const mb_bwt_t *bwt, int32_t len, const uint8_t *seq, mb_sai_v *v)
+void mb_seed_intv(void *km, const mb_bwt_t *bwt, int32_t len, const uint8_t *seq, int32_t min_len, int32_t max_sub_occ, mb_sai_v *v)
 {
 	int64_t x = 0, i, n_a0;
 	mb_sai_t p;
 
 	v->n = 0;
 	do {
-		x = mb_bwt_smem(bwt, len, seq, x, opt->min_len, 1, 1, &p);
+		x = mb_bwt_smem(bwt, len, seq, x, min_len, 1, 1, &p);
 		if (p.size > 0) {
 			Kgrow(km, mb_sai_t, v->a, v->n, v->m);
 			v->a[v->n++] = p;
@@ -66,11 +66,11 @@ void mb_seed_intv(void *km, const mb_seedopt_t *opt, const mb_bwt_t *bwt, int32_
 	n_a0 = v->n;
 	for (i = 0; i < n_a0; ++i) {
 		uint32_t st = v->a[i].info>>32, en = (uint32_t)v->a[i].info;
-		if (en - st < opt->min_len * 2 || v->a[i].size > opt->max_sub_occ)
+		if (en - st < min_len * 2 || v->a[i].size > max_sub_occ)
 			continue;
 		x = st;
 		do {
-			x = mb_bwt_seed_greedy(bwt, en, seq, x, opt->min_len, opt->max_sub_occ * 2, &p);
+			x = mb_bwt_seed_greedy(bwt, en, seq, x, min_len, max_sub_occ * 2, &p);
 			if (p.size > v->a[i].size) {
 				int32_t to_add = 1;
 				if (v->n > 0 && p.size == v->a[v->n-1].size && (uint32_t)p.info <= (uint32_t)v->a[v->n-1].info)
