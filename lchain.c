@@ -4,6 +4,7 @@
 #include <assert.h>
 #include "mbpriv.h"
 #include "kalloc.h"
+#include "kmempool.h"
 #include "krmq.h"
 #include "ksort.h"
 
@@ -259,8 +260,6 @@ typedef struct lc_elem_s {
 #define lc_elem_lt2(a, b) ((a)->pri < (b)->pri)
 KRMQ_INIT(lc_elem, lc_elem_t, head, lc_elem_cmp, lc_elem_lt2)
 
-KALLOC_POOL_INIT(rmq, lc_elem_t)
-
 static inline int32_t comput_sc_simple(const mb_anchor_t *ai, const mb_anchor_t *aj, float chn_pen_gap, float chn_pen_skip, int32_t *exact, int32_t *width)
 {
 	int32_t dq = ai->qs - aj->qs, dr, dd, dg, q_span, sc;
@@ -287,7 +286,7 @@ mb_anchor_t *mb_lchain_rmq(int max_dist, int max_dist_inner, int bw, int max_chn
 	uint64_t *u;
 	lc_elem_t *root = 0, *root_inner = 0;
 	void *mem_mp = 0;
-	kmp_rmq_t *mp;
+	void *mp;
 
 	if (_u) *_u = 0, *n_u_ = 0;
 	if (n == 0 || a == 0) {
@@ -302,7 +301,7 @@ mb_anchor_t *mb_lchain_rmq(int max_dist, int max_dist_inner, int bw, int max_chn
 	t = Kcalloc(km, int32_t, n);
 	v = Kmalloc(km, int32_t, n);
 	mem_mp = km_init2(km, 0x10000);
-	mp = kmp_init_rmq(mem_mp);
+	mp = kmp_init3(mem_mp, sizeof(lc_elem_t), 0x10000);
 
 	// fill the score and backtrack arrays
 	for (i = i0 = 0; i < n; ++i) {
@@ -313,11 +312,11 @@ mb_anchor_t *mb_lchain_rmq(int max_dist, int max_dist_inner, int bw, int max_chn
 		if (i0 < i && a[i0].pos != a[i].pos) {
 			int64_t j;
 			for (j = i0; j < i; ++j) {
-				q = kmp_alloc_rmq(mp);
+				q = kmp_alloc(mp);
 				q->y = a[j].qs, q->i = j, q->pri = -(f[j] + 0.5 * chn_pen_gap * ((int32_t)a[j].pos + a[j].qs));
 				krmq_insert(lc_elem, &root, q, 0);
 				if (max_dist_inner > 0) {
-					r = kmp_alloc_rmq(mp);
+					r = kmp_alloc(mp);
 					*r = *q;
 					krmq_insert(lc_elem, &root_inner, r, 0);
 				}
@@ -329,7 +328,7 @@ mb_anchor_t *mb_lchain_rmq(int max_dist, int max_dist_inner, int bw, int max_chn
 			s.y = a[st].qs, s.i = st;
 			if ((q = krmq_find(lc_elem, root, &s, 0)) != 0) {
 				q = krmq_erase(lc_elem, &root, q, 0);
-				kmp_free_rmq(mp, q);
+				kmp_free(mp, q);
 			}
 			++st;
 		}
@@ -338,7 +337,7 @@ mb_anchor_t *mb_lchain_rmq(int max_dist, int max_dist_inner, int bw, int max_chn
 				s.y = a[st_inner].qs, s.i = st_inner;
 				if ((q = krmq_find(lc_elem, root_inner, &s, 0)) != 0) {
 					q = krmq_erase(lc_elem, &root_inner, q, 0);
-					kmp_free_rmq(mp, q);
+					kmp_free(mp, q);
 				}
 				++st_inner;
 			}

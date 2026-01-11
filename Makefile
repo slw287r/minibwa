@@ -4,7 +4,7 @@ CFLAGS=		-std=c99 -g -Wall -O3
 CXXFLAGS=	$(CFLAGS)
 CPPFLAGS=
 INCLUDES=
-LOBJS=		kommon.o kalloc.o bwt.o l2bit.o options.o seed.o map-algo.o lchain.o
+LOBJS=		kommon.o kalloc.o kmempool.o bwt.o l2bit.o options.o seed.o map-algo.o lchain.o
 AOBJS=		kthread.o QSufSort.o bwtgen.o libsais.o libsais64.o index.o bseq.o map-main.o fastmap.o
 PROG=		minibwa
 LIBS=		-lpthread -lz -lm

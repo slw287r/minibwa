@@ -51,36 +51,4 @@ void km_stat_print(const void *km);
 #define klib_unused
 #endif
 #endif /* klib_unused */
-
-#define KALLOC_POOL_INIT2(SCOPE, name, kmptype_t) \
-	typedef struct { \
-		size_t cnt, n, max; \
-		kmptype_t **buf; \
-		void *km; \
-	} kmp_##name##_t; \
-	SCOPE kmp_##name##_t *kmp_init_##name(void *km) { \
-		kmp_##name##_t *mp; \
-		mp = Kcalloc(km, kmp_##name##_t, 1); \
-		mp->km = km; \
-		return mp; \
-	} \
-	SCOPE void kmp_destroy_##name(kmp_##name##_t *mp) { \
-		size_t k; \
-		for (k = 0; k < mp->n; ++k) kfree(mp->km, mp->buf[k]); \
-		kfree(mp->km, mp->buf); kfree(mp->km, mp); \
-	} \
-	SCOPE kmptype_t *kmp_alloc_##name(kmp_##name##_t *mp) { \
-		++mp->cnt; \
-		if (mp->n == 0) return (kmptype_t*)kcalloc(mp->km, 1, sizeof(kmptype_t)); \
-		return mp->buf[--mp->n]; \
-	} \
-	SCOPE void kmp_free_##name(kmp_##name##_t *mp, kmptype_t *p) { \
-		--mp->cnt; \
-		if (mp->n == mp->max) Kexpand(mp->km, kmptype_t*, mp->buf, mp->max); \
-		mp->buf[mp->n++] = p; \
-	}
-
-#define KALLOC_POOL_INIT(name, kmptype_t) \
-	KALLOC_POOL_INIT2(static inline klib_unused, name, kmptype_t)
-
 #endif
