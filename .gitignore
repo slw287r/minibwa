@@ -2,3 +2,5 @@
 *.o
 *.a
 Makefile.bak
+minibwa
+tmp
