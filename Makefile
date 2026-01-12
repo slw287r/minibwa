@@ -5,7 +5,7 @@ CXXFLAGS=	$(CFLAGS)
 CPPFLAGS=
 INCLUDES=
 LOBJS=		kommon.o kalloc.o kmempool.o bwt.o l2bit.o options.o seed.o map-algo.o lchain.o \
-			ksw2_extz2_sse.o ksw2_extd2_sse.o ksw2_exts2_sse.o ksw2_ll_sse.o
+			ksw2_extz2_sse.o ksw2_extd2_sse.o ksw2_ll_sse.o
 AOBJS=		kthread.o QSufSort.o bwtgen.o libsais.o libsais64.o index.o bseq.o map-main.o fastmap.o
 PROG=		minibwa
 LIBS=		-lpthread -lz -lm
@@ -44,6 +44,7 @@ depend:
 # DO NOT DELETE
 
 QSufSort.o: QSufSort.h
+align.o: mbpriv.h minibwa.h l2bit.h bwt.h ksw2.h
 bseq.o: bseq.h kseq.h
 bwt.o: kommon.h kalloc.h bwt.h
 bwtgen.o: QSufSort.h
@@ -53,7 +54,6 @@ kalloc.o: kalloc.h
 kmempool.o: kmempool.h kalloc.h
 kommon.o: kommon.h
 ksw2_extd2_sse.o: ksw2.h
-ksw2_exts2_sse.o: ksw2.h
 ksw2_extz2_sse.o: ksw2.h
 ksw2_ll_sse.o: ksw2.h
 kthread.o: kthread.h

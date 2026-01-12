@@ -154,8 +154,6 @@ void mb_anchor(void *km, const mb_idx_t *idx, const mb_sai_v *u, int32_t max_occ
 					q->len = len;
 					q->qpos = qs + len - 1;
 					q->tpos = a[k] + len - 1;
-					q->qocc = i - i0 < 1<<16? i - i0 : (1<<16) - 1;
-					q->tocc = p->size < 1<<15? p->size : (1<<15) - 1;
 				}
 			}
 			i0 = i;

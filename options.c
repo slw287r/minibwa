@@ -34,6 +34,8 @@ int mb_set_preset(const char *preset, mb_mopt_t *opt)
 {
 	if (preset == 0) {
 		mb_mopt_init(opt);
+	} else if (strcmp(preset, "lr:hq") == 0) { // to be added
+	} else if (strcmp(preset, "asm5") == 0) { // to be added
 	} else if (strcmp(preset, "sr") == 0) {
 		mb_mopt_init(opt);
 		opt->flag |= MB_F_FRAG_MODE;

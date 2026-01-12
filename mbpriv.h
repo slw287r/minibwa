@@ -16,7 +16,7 @@ typedef struct {
 	int32_t tid2; // stranded target sequence ID, ranged from 0 to 2*l2b_t::n_ctg - 1
 	int32_t len; // length of the anchor
 	int32_t qpos; // the query coordinate of the last base in the anchor; the start base is qpos+1-len
-	uint16_t qocc, tocc:15, flt:1; // ignore these for now
+	uint32_t dummy; // this field can be used for bit flags or small information
 	uint64_t tpos; // the target coordinate of the last base in the anchor
 } mb_anchor_t;
 
