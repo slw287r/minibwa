@@ -7,6 +7,11 @@
 
 #define MB_DBG_NO_KALLOC    (0x1LL)
 
+#define MB_SEED_LONG_JOIN  0x1
+#define MB_SEED_IGNORE     0x2
+#define MB_SEED_TANDEM     0x4
+#define MM_SEED_SELF       0x8
+
 struct mb_idx_s {
 	l2b_t *l2b;
 	mb_bwt_t *bwt;
@@ -16,7 +21,7 @@ typedef struct {
 	int32_t sid; // tid<<1|rev
 	int32_t len; // length of the anchor
 	int32_t qpos; // the query coordinate of the last base in the anchor; the start base is qpos+1-len
-	uint32_t dummy;
+	uint32_t flag;
 	int64_t tpos; // target/contig coordinate
 } mb_anchor_t;
 
@@ -52,6 +57,16 @@ void mb_filter_hits(const mb_mopt_t *opt, int qlen, int *n_regs, mb_hit_t *regs)
 int mb_squeeze_a(void *km, int n_regs, mb_hit_t *regs, mb_anchor_t *a);
 void mb_split_hit(mb_hit_t *r, mb_hit_t *r2, int n, int qlen, mb_anchor_t *a, const l2b_t *l2b);
 
+// Fast log2 approximation (from minimap2)
+static inline float mb_log2(float x) // NB: this doesn't work when x<2
+{
+	union { float f; uint32_t i; } z = { x };
+	float log_2 = ((z.i >> 23) & 255) - 128;
+	z.i &= ~(255 << 23);
+	z.i += 127 << 23;
+	log_2 += (-0.34484843f * z.f + 2.02466578f) * z.f - 0.67487759f;
+	return log_2;
+}
 #ifdef __cplusplus
 }
 #endif

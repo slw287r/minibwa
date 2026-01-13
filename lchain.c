@@ -24,17 +24,6 @@
  *   - Seed length (len) as q_span for scoring
  */
 
-// Fast log2 approximation (from minimap2)
-static inline float mb_log2(float x) // NB: this doesn't work when x<2
-{
-	union { float f; uint32_t i; } z = { x };
-	float log_2 = ((z.i >> 23) & 255) - 128;
-	z.i &= ~(255 << 23);
-	z.i += 127 << 23;
-	log_2 += (-0.34484843f * z.f + 2.02466578f) * z.f - 0.67487759f;
-	return log_2;
-}
-
 static int64_t mb_chain_bk_end(int32_t max_drop, const mb128_t *z, const int32_t *f, const int64_t *p, int32_t *t, int64_t k)
 {
 	int64_t i = z[k].y, end_i = -1, max_i = i;

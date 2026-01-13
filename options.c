@@ -20,13 +20,21 @@ void mb_mopt_init(mb_mopt_t *opt)
 	opt->chn_pen_skip = 0.05f;
 	// hit processing options
 	opt->mask_level = 0.5f;
-	opt->mask_len = 2147483647;
+	opt->mask_len = INT32_MAX;
 	opt->sub_diff = 0;
 	opt->pri_ratio = 0.8f;
 	opt->best_n = 5;
+	// alignment options
+	opt->a = 2,  opt->b = 8;
+	opt->q = 12, opt->q2 = 26;
+	opt->e = 2,  opt->e2 = 1;
+	opt->min_dp_max = 80;
+	opt->zdrop = 400;
+	opt->zdrop_inv = 200;
 	// I/O options
 	opt->n_thread = 4;
 	opt->mb_size = 500000000;
+	opt->max_sw_mat = 100000000;
 }
 
 int mb_set_preset(const char *preset, mb_mopt_t *opt)

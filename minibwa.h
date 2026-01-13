@@ -9,6 +9,19 @@
 #define MB_F_WRITE_UNMAP      (0x2LL)    // output unmapped query sequences
 #define MB_F_COPY_COMMENT     (0x4LL)    // copy FASTX comments to output (SAM only)
 #define MB_F_FRAG_MODE        (0x8LL)    // fragment/paired-end mode
+#define MB_F_SR               (0x10LL)   // short-read mode
+
+#define MB_CIGAR_MATCH      0
+#define MB_CIGAR_INS        1
+#define MB_CIGAR_DEL        2
+#define MB_CIGAR_N_SKIP     3
+#define MB_CIGAR_SOFTCLIP   4
+#define MB_CIGAR_HARDCLIP   5
+#define MB_CIGAR_PADDING    6
+#define MB_CIGAR_EQ_MATCH   7
+#define MB_CIGAR_X_MISMATCH 8
+
+#define MB_CIGAR_STR  "MIDNSHP=XB"
 
 typedef struct {
 	uint64_t flag;
@@ -20,7 +33,8 @@ typedef struct {
 	int32_t bw, bw_long; // bandwidth
 	int32_t max_gap; // break a chain if there are no seeds in a max_gap window
 	// chaining options
-	int32_t max_chain_skip, max_chain_iter;
+	int32_t max_chain_skip;
+	int32_t max_chain_iter;
 	int32_t min_chain_score; // min chaining score
 	int32_t rmq_inner_dist; // RMQ inner distance
 	int32_t rmq_size_cap; // RMQ size cap
@@ -32,17 +46,29 @@ typedef struct {
 	int32_t sub_diff;
 	float pri_ratio;
 	int32_t best_n;
+	// alignment options
+	int32_t a, b;     // match, mismatch
+	int32_t b_ts;     // transition mismatch
+	int32_t q, q2;    // gap open, long gap open
+	int32_t e, e2;    // gap extension, long gap extension
+	int32_t zdrop;
+	int32_t zdrop_inv;
+	int32_t min_dp_max;
 	// input/output options
 	int32_t n_thread; // number of worker threads, excluding I/O threads
 	int64_t mb_size;  // mini-batch size
+	int64_t max_sw_mat;
 } mb_mopt_t;
 
 struct mb_idx_s;
 typedef struct mb_idx_s mb_idx_t;
 
 typedef struct {
-	uint32_t cap;
-	int32_t n_cigar;
+	uint32_t cap;                      // the capacity of cigar[]
+	int32_t dp_score, dp_max, dp_max2; // DP score; score of the max-scoring segment; score of the best alternate mappings
+	int32_t dp_max0;                   // DP score before mb_update_dp_max() adjustment
+	uint32_t n_ambi;                   // number of ambiguous bases;
+	int32_t n_cigar;                   // number of cigar operations in cigar[]
 	uint64_t cigar[];
 } mb_extra_t;
 
@@ -60,7 +86,7 @@ typedef struct {
 	int32_t parent, n_sub, subsc;
 	int32_t mlen, blen;
 	uint32_t hash;
-	uint32_t rev:1, sam_pri:1, inv:1, split:2, seg_split:1, strand_retained:1, dummy:25;
+	uint32_t rev:1, sam_pri:1, inv:1, split:2, seg_split:1, dummy:26;
 	int32_t seg_id;
 	mb_extra_t *p;
 } mb_hit_t;
