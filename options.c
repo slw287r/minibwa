@@ -1,9 +1,9 @@
 #include <string.h>
 #include "minibwa.h"
 
-void mb_mopt_init(mb_mopt_t *opt)
+void mb_opt_init(mb_opt_t *opt)
 {
-	memset(opt, 0, sizeof(*opt));
+	memset(opt, 0, sizeof(mb_opt_t));
 	// seeding options
 	opt->min_len = 19;
 	opt->max_sub_occ = 10;
@@ -20,7 +20,7 @@ void mb_mopt_init(mb_mopt_t *opt)
 	opt->chn_pen_skip = 0.05f;
 	// hit processing options
 	opt->mask_level = 0.5f;
-	opt->mask_len = INT32_MAX;
+	opt->mask_len = 0x7fffffff;
 	opt->sub_diff = 0;
 	opt->pri_ratio = 0.5f;
 	opt->best_n = 5;
@@ -35,20 +35,20 @@ void mb_mopt_init(mb_mopt_t *opt)
 	opt->zdrop_inv = 200;
 	opt->min_ksw_len = 200;
 	// I/O options
-	opt->n_thread = 1; // TODO: use 4 by default in future
+	opt->n_thread = 1;
 	opt->seed = 11;
 	opt->mb_size = 500000000;
 	opt->max_sw_mat = 100000000;
 }
 
-int mb_preset(mb_mopt_t *opt, const char *preset)
+int mb_opt_preset(mb_opt_t *opt, const char *preset)
 {
 	if (preset == 0) {
-		mb_mopt_init(opt);
+		mb_opt_init(opt);
 	} else if (strcmp(preset, "lr:hq") == 0) { // to be added
 	} else if (strcmp(preset, "asm5") == 0) { // to be added
 	} else if (strcmp(preset, "sr") == 0) {
-		opt->flag |= MB_F_SR | MB_F_FRAG_MODE;
+		opt->flag |= MB_F_SR | MB_F_PE;
 		opt->max_gap = 100;
 		opt->pri_ratio = 0.5f;
 		opt->best_n = 20;

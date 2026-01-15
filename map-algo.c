@@ -276,7 +276,7 @@ void mb_hit_sort(void *km, int *n_regs, mb_hit_t *r)
 	kfree(km, t);
 }
 
-void mb_filter_hits(const mb_mopt_t *opt, int qlen, int *n_regs, mb_hit_t *regs)
+void mb_filter_hits(const mb_opt_t *opt, int qlen, int *n_regs, mb_hit_t *regs)
 {
 	int i, k;
 	for (i = k = 0; i < *n_regs; ++i) {
@@ -316,7 +316,7 @@ int mb_squeeze_a(void *km, int n_regs, mb_hit_t *regs, mb_anchor_t *a)
 	return as;
 }
 
-mb_hit_t *mb_map(const mb_mopt_t *opt, const mb_idx_t *idx, int64_t qlen, const char *seq0, int32_t *n_hit_, mb_tbuf_t *b, const char *qname)
+mb_hit_t *mb_map(const mb_opt_t *opt, const mb_idx_t *idx, int64_t qlen, const char *seq0, int32_t *n_hit_, mb_tbuf_t *b, const char *qname)
 {
 	uint8_t *seq;
 	uint32_t hash;

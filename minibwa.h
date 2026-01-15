@@ -8,8 +8,8 @@
 #define MB_F_SAM              (0x1LL)    // output in the SAM format
 #define MB_F_WRITE_UNMAP      (0x2LL)    // output unmapped query sequences
 #define MB_F_COPY_COMMENT     (0x4LL)    // copy FASTX comments to output (SAM only)
-#define MB_F_FRAG_MODE        (0x8LL)    // fragment/paired-end mode
-#define MB_F_SR               (0x10LL)   // short-read mode
+#define MB_F_SR               (0x8LL)    // short-read mode
+#define MB_F_PE               (0x10LL)   // fragment/paired-end mode
 #define MB_F_EQX              (0x20LL)   // = in CIGAR
 
 #define MB_CIGAR_MATCH      0
@@ -63,7 +63,7 @@ typedef struct {
 	int32_t seed;
 	int64_t mb_size;  // mini-batch size
 	int64_t max_sw_mat;
-} mb_mopt_t;
+} mb_opt_t;
 
 struct mb_idx_s;
 typedef struct mb_idx_s mb_idx_t;
@@ -106,13 +106,13 @@ extern "C" {
 mb_idx_t *mb_idx_load(const char *prefix);
 void mb_idx_destroy(mb_idx_t *idx);
 
-void mb_mopt_init(mb_mopt_t *opt);
-int mb_preset(mb_mopt_t *opt, const char *preset);
+void mb_opt_init(mb_opt_t *opt);
+int mb_opt_preset(mb_opt_t *opt, const char *preset);
 
 mb_tbuf_t *mb_tbuf_init(void);
 void mb_tbuf_destroy(mb_tbuf_t *b);
 
-mb_hit_t *mb_map(const mb_mopt_t *opt, const mb_idx_t *idx, int64_t qlen, const char *seq0, int32_t *n_hit_, mb_tbuf_t *b, const char *qname);
+mb_hit_t *mb_map(const mb_opt_t *opt, const mb_idx_t *idx, int64_t qlen, const char *seq0, int32_t *n_hit_, mb_tbuf_t *b, const char *qname);
 
 #ifdef __cplusplus
 }

@@ -59,10 +59,10 @@ int main_fastmap(int argc, char *argv[])
 			mb_anchor_t *a;
 			int32_t n_hit;
 			uint64_t *w;
-			mb_mopt_t mo, *opt = &mo;
+			mb_opt_t mo, *opt = &mo;
 
-			mb_mopt_init(opt);
-			mb_preset(opt, "sr");
+			mb_opt_init(opt);
+			mb_opt_preset(opt, "sr");
 			mb_seed_intv(0, bwt, ks->seq.l, (uint8_t*)ks->seq.s, 19, 10, &u);
 			mb_anchor(0, idx, &u, ks->seq.l, 500, &v);
 			free(u.a);

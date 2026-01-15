@@ -55,7 +55,7 @@ static inline void update_max_zdrop(int32_t score, int i, int j, int32_t *max, i
 	} else *max = score, *max_i = i, *max_j = j;
 }
 
-static int mm_test_zdrop(void *km, const mb_mopt_t *opt, const uint8_t *qseq, const uint8_t *tseq, uint32_t n_cigar, uint32_t *cigar, const int8_t *mat)
+static int mm_test_zdrop(void *km, const mb_opt_t *opt, const uint8_t *qseq, const uint8_t *tseq, uint32_t n_cigar, uint32_t *cigar, const int8_t *mat)
 {
 	uint32_t k;
 	int32_t score = 0, max = INT32_MIN, max_i = -1, max_j = -1, i = 0, j = 0, max_zdrop = 0;
@@ -327,7 +327,7 @@ static void mb_append_cigar(mb_hit_t *r, uint32_t n_cigar, const uint32_t *cigar
 	}
 }
 
-static void mb_align_pair(void *km, const mb_mopt_t *opt, int qlen, const uint8_t *qseq, int tlen, const uint8_t *tseq,
+static void mb_align_pair(void *km, const mb_opt_t *opt, int qlen, const uint8_t *qseq, int tlen, const uint8_t *tseq,
 						  const int8_t *mat, int w, int end_bonus, int zdrop, int ksw_flag, ksw_extz_t *ez)
 {
 	//fprintf(stderr, "%d:%d\n", tlen, qlen);
@@ -506,7 +506,7 @@ static inline int32_t mb_min_int32(int32_t a, int32_t b)
 	return a < b? a : b;
 }
 
-static void mb_align1(void *km, const mb_mopt_t *opt, const mb_idx_t *mi, int qlen, uint8_t *qseq0[2], mb_hit_t *r, mb_hit_t *r2, int n_a, mb_anchor_t *a, ksw_extz_t *ez)
+static void mb_align1(void *km, const mb_opt_t *opt, const mb_idx_t *mi, int qlen, uint8_t *qseq0[2], mb_hit_t *r, mb_hit_t *r2, int n_a, mb_anchor_t *a, ksw_extz_t *ez)
 {
 	int32_t is_sr = !!(opt->flag & MB_F_SR);
 	int32_t max_back = is_sr? 0 : 10; // for long reads, allow up to 10bp "edges" from chain ends
@@ -708,7 +708,7 @@ static void mb_align1(void *km, const mb_mopt_t *opt, const mb_idx_t *mi, int ql
 	kfree(km, tseq);
 }
 
-static int mb_align1_inv(void *km, const mb_mopt_t *opt, const mb_idx_t *mi, int qlen, uint8_t *qseq0[2], const mb_hit_t *r1, const mb_hit_t *r2, mb_hit_t *r_inv, ksw_extz_t *ez)
+static int mb_align1_inv(void *km, const mb_opt_t *opt, const mb_idx_t *mi, int qlen, uint8_t *qseq0[2], const mb_hit_t *r1, const mb_hit_t *r2, mb_hit_t *r_inv, ksw_extz_t *ez)
 { // NB: this doesn't work with the qstrand mode
 	int tl, ql, score, ret = 0, q_off, t_off;
 	uint8_t *tseq, *qseq;
@@ -774,7 +774,7 @@ static inline mb_hit_t *mb_insert_reg(const mb_hit_t *r, int i, int *n_regs, mb_
 	return regs;
 }
 
-mb_hit_t *mb_align_skeleton(void *km, const mb_mopt_t *opt, const mb_idx_t *mi, int qlen, const char *qstr, int *n_regs_, mb_hit_t *regs, mb_anchor_t *a)
+mb_hit_t *mb_align_skeleton(void *km, const mb_opt_t *opt, const mb_idx_t *mi, int qlen, const char *qstr, int *n_regs_, mb_hit_t *regs, mb_anchor_t *a)
 {
 	int32_t i, n_regs = *n_regs_, n_a;
 	uint8_t *qseq0[2];

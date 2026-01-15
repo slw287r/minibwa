@@ -12,7 +12,7 @@ typedef struct {
 	int32_t n_fp, n_threads;
 	int64_t n_base, n_seq;
 	int64_t mb_size; // mini-batch size
-	const mb_mopt_t *opt;
+	const mb_opt_t *opt;
 	mb_bseq_file_t **fp;
 	const mb_idx_t *idx;
 	FILE *fp_out;
@@ -30,7 +30,7 @@ typedef struct {
 static void worker_for(void *data, long i, int tid)
 {
 	step_t *s = (step_t*)data;
-	const mb_mopt_t *opt = s->p->opt;
+	const mb_opt_t *opt = s->p->opt;
 	const mb_idx_t *idx = s->p->idx;
 	mb_tbuf_t *b = s->tbuf[tid];
 	int32_t j, off = s->seg_off[i];
@@ -47,7 +47,7 @@ static void *worker_pipeline(void *shared, int step, void *in)
     if (step == 0) { // step 0: read sequences
 		int with_qual = !!(p->opt->flag & MB_F_SAM);
 		int with_comment = (!!(p->opt->flag & MB_F_SAM) && !!(p->opt->flag & MB_F_COPY_COMMENT));
-		int frag_mode = (p->n_fp > 1 || !!(p->opt->flag & MB_F_FRAG_MODE));
+		int frag_mode = (p->n_fp > 1 || !!(p->opt->flag & MB_F_PE));
         step_t *s;
         s = kom_calloc(step_t, 1);
 		if (p->n_fp > 1) s->seq = mb_bseq_read_frag(p->n_fp, p->fp, p->mb_size, with_qual, with_comment, &s->n_seq);
@@ -137,7 +137,7 @@ static mb_bseq_file_t **mb_open_bseqs(int n, const char **fn)
 	return fp;
 }
 
-int32_t mb_map_file(const mb_mopt_t *opt, const mb_idx_t *idx, int32_t n, const char **fn, const char *fn_out)
+int32_t mb_map_file(const mb_opt_t *opt, const mb_idx_t *idx, int32_t n, const char **fn, const char *fn_out)
 {
 	int32_t i, pl_thread;
 	pipeline_t pl;
@@ -171,7 +171,7 @@ static ko_longopt_t long_options[] = {
 	{ 0, 0, 0 }
 };
 
-static int usage(FILE *fp, const mb_mopt_t *opt)
+static int usage(FILE *fp, const mb_opt_t *opt)
 {
 	fprintf(fp, "Usage: minibwa map [options] <in.idx> <in.fastq>\n");
 	fprintf(fp, "Options:\n");
@@ -187,7 +187,7 @@ static int usage(FILE *fp, const mb_mopt_t *opt)
 	return fp == stdout? 0 : 1;
 }
 
-static inline void yes_or_no(mb_mopt_t *opt, uint64_t flag, int long_idx, const char *arg, int yes_to_set)
+static inline void yes_or_no(mb_opt_t *opt, uint64_t flag, int long_idx, const char *arg, int yes_to_set)
 {
 	if (yes_to_set) {
 		if (strcmp(arg, "yes") == 0 || strcmp(arg, "y") == 0) opt->flag |= flag;
@@ -205,14 +205,14 @@ int main_map(int argc, char *argv[])
 	const char *opt_str = "x:o:k:p:t:K:N:";
 	int32_t c;
 	mb_idx_t *idx;
-	mb_mopt_t mo;
+	mb_opt_t mo;
 	char *fn_out = 0;
 	ketopt_t o = KETOPT_INIT;
 
-	mb_mopt_init(&mo);
+	mb_opt_init(&mo);
 	while ((c = ketopt(&o, argc, argv, 1, opt_str, long_options)) >= 0) { // test command line options and apply option -x/preset first
 		if (c == 'x') {
-			if (mb_preset(&mo, o.arg) < 0) {
+			if (mb_opt_preset(&mo, o.arg) < 0) {
 				fprintf(stderr, "[ERROR] unknown preset '%s'\n", o.arg);
 				return 1;
 			}
@@ -233,7 +233,7 @@ int main_map(int argc, char *argv[])
 		else if (c == 't') mo.n_thread = atoi(o.arg);
 		else if (c == 'K') mo.mb_size = kom_parse_num(o.arg, 0);
 		else if (c == 301) { // --frag
-			yes_or_no(&mo, MB_F_FRAG_MODE, c, o.arg, 1);
+			yes_or_no(&mo, MB_F_PE, c, o.arg, 1);
 		} else if (c == 901) { // --version
 			puts(MB_VERSION);
 			exit(0);
