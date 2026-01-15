@@ -181,6 +181,7 @@ static int usage(FILE *fp, const mb_opt_t *opt)
 	fprintf(fp, "Options:\n");
 	fprintf(fp, "  Mapping:\n");
 	fprintf(fp, "    -k INT           min k-mer length [%d]\n", opt->min_len);
+	fprintf(fp, "    -c NUM           max seed occurrences [%d]\n", opt->max_occ);
 	fprintf(fp, "    -p FLOAT         min secondary-to-primary score ratio [%g]\n", opt->pri_ratio);
 	fprintf(fp, "    -N INT           retain at most INT secondary alignments [%d]\n", opt->best_n);
 	fprintf(fp, "    -C               perform chaining only without base alignment\n");
@@ -210,7 +211,7 @@ static inline void yes_or_no(mb_opt_t *opt, uint64_t flag, int long_idx, const c
 #endif
 int main_map(int argc, char *argv[])
 {
-	const char *opt_str = "x:o:k:p:A:B:b:O:E:t:K:N:CS";
+	const char *opt_str = "x:o:k:c:p:A:B:b:O:E:t:K:N:CS";
 	int32_t c;
 	mb_idx_t *idx;
 	mb_opt_t mo;
@@ -235,6 +236,7 @@ int main_map(int argc, char *argv[])
 	o = KETOPT_INIT;
 	while ((c = ketopt(&o, argc, argv, 1, opt_str, long_options)) >= 0) {
 		if (c == 'k') mo.min_len = atoi(o.arg);
+		else if (c == 'c') mo.max_occ = kom_parse_num(o.arg, 0);
 		else if (c == 'p') mo.pri_ratio = atof(o.arg);
 		else if (c == 'N') mo.best_n = atoi(o.arg);
 		else if (c == 'A') mo.a = atoi(o.arg);
