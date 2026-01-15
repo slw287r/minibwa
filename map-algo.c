@@ -1,5 +1,6 @@
 #include <stdlib.h>
 #include <stdio.h>
+#include <math.h>
 #include "mbpriv.h"
 #include "kalloc.h"
 #include "kommon.h"
@@ -315,6 +316,79 @@ int mb_squeeze_a(void *km, int n_regs, mb_hit_t *regs, mb_anchor_t *a)
 	return as;
 }
 
+/*******************
+ * Mapping quality *
+ *******************/
+
+static void mb_set_inv_mapq(void *km, int n_regs, mb_hit_t *regs)
+{
+	int i, n_aux;
+	mb128_t *aux;
+	if (n_regs < 3) return;
+	for (i = 0; i < n_regs; ++i)
+		if (regs[i].inv) break;
+	if (i == n_regs) return; // no inversion hits
+
+	aux = Kmalloc(km, mb128_t, n_regs);
+	for (i = n_aux = 0; i < n_regs; ++i)
+		if (regs[i].parent == i || regs[i].parent < 0)
+			aux[n_aux].y = i, aux[n_aux++].x = (uint64_t)regs[i].tid << 32 | regs[i].ts;
+	radix_sort_mb128x(aux, aux + n_aux);
+
+	for (i = 1; i < n_aux - 1; ++i) {
+		mb_hit_t *inv = &regs[aux[i].y];
+		if (inv->inv) {
+			mb_hit_t *l = &regs[aux[i-1].y];
+			mb_hit_t *r = &regs[aux[i+1].y];
+			inv->mapq = l->mapq < r->mapq? l->mapq : r->mapq;
+		}
+	}
+	kfree(km, aux);
+}
+
+void mb_set_mapq(void *km, int n_regs, mb_hit_t *regs, int min_chain_sc, int match_sc, int is_sr)
+{
+	static const float q_coef = 40.0f;
+	int i;
+	if (n_regs == 0) return;
+	for (i = 0; i < n_regs; ++i) {
+		mb_hit_t *r = &regs[i];
+		if (r->inv) {
+			r->mapq = 0;
+		} else if (r->parent == r->id) {
+			int mapq, subsc;
+			float pen_s1 = r->score > 100? 1.0f : 0.01f * r->score;
+			subsc = r->subsc > min_chain_sc? r->subsc : min_chain_sc;
+			if (r->p && r->p->dp_max2 > 0 && r->p->dp_max > 0) {
+				float x, identity = (float)r->mlen / r->blen;
+				x = (float)r->p->dp_max2 * subsc / r->p->dp_max / r->score0;
+				mapq = (int)(pen_s1 * identity * q_coef * (1.0f - x * x) * logf((float)r->p->dp_max / match_sc));
+				if (!is_sr) {
+					int mapq_alt = (int)(6.02f * identity * identity * (r->p->dp_max - r->p->dp_max2) / match_sc + .499f); // BWA-MEM like mapQ, mostly for short reads
+					mapq = mapq < mapq_alt? mapq : mapq_alt; // in case the long-read heuristic fails
+				}
+			} else {
+				float x = (float)subsc / r->score0;
+				if (r->p) {
+					float identity = (float)r->mlen / r->blen;
+					mapq = (int)(pen_s1 * identity * q_coef * (1.0f - x) * logf((float)r->p->dp_max / match_sc));
+				} else {
+					mapq = (int)(pen_s1 * q_coef * (1.0f - x) * logf(r->score));
+				}
+			}
+			mapq -= (int)(4.343f * logf(r->n_sub + 1) + .499f);
+			mapq = mapq > 0? mapq : 0;
+			r->mapq = mapq < 60? mapq : 60;
+			if (r->p && r->p->dp_max > r->p->dp_max2 && r->mapq == 0) r->mapq = 1;
+		} else r->mapq = 0;
+	}
+	mb_set_inv_mapq(km, n_regs, regs);
+}
+
+/************************
+ * Core mapping routine *
+ ************************/
+
 mb_hit_t *mb_map(const mb_opt_t *opt, const mb_idx_t *idx, int64_t qlen, const char *seq0, int32_t *n_hit_, mb_tbuf_t *b, const char *qname)
 {
 	uint8_t *seq;
@@ -354,6 +428,7 @@ mb_hit_t *mb_map(const mb_opt_t *opt, const mb_idx_t *idx, int64_t qlen, const c
 		mb_set_parent(b->km, opt->mask_level, opt->mask_len, n_hit, hit, opt->a * 2 + opt->b, 0);
 		mb_select_sub(b->km, opt->pri_ratio, opt->min_len * 2, opt->best_n, &n_hit, hit);
 	}
+	mb_set_mapq(b->km, n_hit, hit, opt->min_chain_score, opt->a, !(opt->flag & MB_F_LONG));
 	kfree(b->km, a);
 	kfree(b->km, seq);
 	*n_hit_ = n_hit;
