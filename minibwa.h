@@ -8,7 +8,7 @@
 #define MB_F_SAM              (0x1LL)    // output in the SAM format
 #define MB_F_WRITE_UNMAP      (0x2LL)    // output unmapped query sequences
 #define MB_F_COPY_COMMENT     (0x4LL)    // copy FASTX comments to output (SAM only)
-#define MB_F_PE               (0x8LL)    // fragment/paired-end mode
+#define MB_F_PE               (0x8LL)    // paired-end mode
 #define MB_F_SR               (0x10LL)   // short-read mode
 #define MB_F_EQX              (0x20LL)   // = in CIGAR
 
@@ -39,8 +39,8 @@ typedef struct {
 	int32_t min_chain_score; // min chaining score
 	int32_t rmq_inner_dist; // RMQ inner distance
 	int32_t rmq_size_cap; // RMQ size cap
-	float chn_pen_gap; // gap penalty coefficient
-	float chn_pen_skip; // skip penalty coefficient
+	float chain_gap_scale;
+	float chain_skip_scale;
 	// hit processing options
 	float mask_level;
 	int32_t mask_len;

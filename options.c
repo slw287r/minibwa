@@ -13,7 +13,8 @@ void mb_opt_init(mb_opt_t *opt)
 	opt->max_chain_iter = 5000;
 	opt->rmq_inner_dist = 1000;
 	opt->rmq_size_cap = 100000;
-	opt->chn_pen_skip = 0.05f;
+	opt->chain_gap_scale = 0.8f;
+	opt->chain_skip_scale = 0.0f;
 	// hit processing options
 	opt->mask_level = 0.5f;
 	opt->mask_len = 0x7fffffff;
@@ -46,7 +47,8 @@ int mb_opt_preset(mb_opt_t *opt, const char *preset)
 		opt->end_bonus = 10;
 		opt->min_chain_score = 25;
 		opt->mb_size = 50000000;
-	} else if (strcmp(preset, "lr") == 0) {
+	} else if (strcmp(preset, "lr") == 0 || strcmp(preset, "asm") == 0) { // TODO: to implement asm
+		opt->flag &= ~MB_F_SR;
 		opt->bw = 500, opt->bw_long = 20000;
 		opt->max_gap = 5000;
 		opt->pri_ratio = 0.8f;
@@ -54,7 +56,6 @@ int mb_opt_preset(mb_opt_t *opt, const char *preset)
 		opt->end_bonus = -1;
 		opt->min_chain_score = 40;
 		opt->mb_size = 500000000;
-	} else if (strcmp(preset, "asm") == 0) { // to be added
 	} else {
 		return -1;
 	}
