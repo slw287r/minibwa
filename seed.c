@@ -145,7 +145,7 @@ static void process_batch(void *km, const mb_idx_t *idx, const anchor_aux_t *aux
 void mb_anchor(void *km, const mb_idx_t *idx, const mb_sai_v *u, int32_t qlen, int32_t max_occ, mb_anchor_v *v)
 {
 	const int batch_size = 20;
-	int32_t n_aux, m;
+	int32_t n_aux, m, m_a;
 	int64_t i, i0, j, k;
 	uint64_t *a;
 	sa_aux_t *b;
@@ -176,8 +176,9 @@ void mb_anchor(void *km, const mb_idx_t *idx, const mb_sai_v *u, int32_t qlen, i
 		if (i == u->n || u->a[i].x[0] != u->a[i0].x[0] || u->a[i].size != u->a[i0].size)
 			aux[n_aux].st = i0, aux[n_aux++].en = i, i0 = i;
 
-	a = Kmalloc(km, uint64_t, max_occ * 2);
-	b = Kmalloc(km, sa_aux_t, max_occ * 2);
+	m_a = max_occ > batch_size? max_occ : batch_size; // max size of a[] and b[]
+	a = Kmalloc(km, uint64_t, m_a);
+	b = Kmalloc(km, sa_aux_t, m_a);
 	for (i = 0, m = 0; i < n_aux; ++i) {
 		const anchor_aux_t *p = &aux[i];
 		const mb_sai_t *q = &u->a[p->st];
@@ -197,6 +198,7 @@ void mb_anchor(void *km, const mb_idx_t *idx, const mb_sai_v *u, int32_t qlen, i
 				j += step;
 			}
 		}
+		assert(m <= m_a); // shouldn't happen!
 	}
 	process_batch(km, idx, aux, m, b, a, qlen, u, v);
 	kfree(km, b);
