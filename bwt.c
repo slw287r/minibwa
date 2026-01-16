@@ -348,13 +348,22 @@ void mb_bwt_sa_batch(void *km, const mb_bwt_t *bwt, int64_t n, uint64_t *x)
 	uint64_t mask = (1ULL<<bwt->sa_bit) - 1;
 	int64_t i, step = 0, r = n;
 	kom128_t *z;
+	if (n <= 0) return;
 	z = Kmalloc(km, kom128_t, n);
 	for (i = 0; i < n; ++i) {
 		z[i].x = x[i], z[i].y = i;
-		mb_bwt_block_prefetch(bwt, z[i].x);
+		if ((z[i].x & mask) == 0)
+			__builtin_prefetch(&bwt->sa[z[i].x >> bwt->sa_bit]);
+		else
+			mb_bwt_block_prefetch(bwt, z[i].x);
 	}
-	for (step = 0; r; ++step) {
-		int64_t r0;
+	for (step = 0; r > 0; ++step) {
+		int64_t r0 = r;
+		for (i = 0, r = 0; i < r0; ++i) {
+			if ((z[i].x & mask) == 0)
+				x[z[i].y] = step + bwt->sa[z[i].x >> bwt->sa_bit];
+			else z[r++] = z[i];
+		}
 		for (i = 0; i < r; ++i) {
 			z[i].x = bwt_invPsi(bwt, z[i].x);
 			if ((z[i].x & mask) == 0)
@@ -362,13 +371,6 @@ void mb_bwt_sa_batch(void *km, const mb_bwt_t *bwt, int64_t n, uint64_t *x)
 			else
 				mb_bwt_block_prefetch(bwt, z[i].x);
 		}
-		for (i = 0; i < r; ++i)
-			if ((z[i].x & mask) == 0)
-				x[z[i].y] = step + 1 + bwt->sa[z[i].x >> bwt->sa_bit];
-		r0 = r;
-		for (i = 0, r = 0; i < r0; ++i)
-			if (z[i].x & mask)
-				z[r++] = z[i];
 	}
 	kfree(km, z);
 }
