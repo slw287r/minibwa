@@ -19,6 +19,14 @@
 #define kom_roundup32(x) (--(x), (x)|=(x)>>1, (x)|=(x)>>2, (x)|=(x)>>4, (x)|=(x)>>8, (x)|=(x)>>16, ++(x))
 #define kom_roundup64(x) (--(x), (x)|=(x)>>1, (x)|=(x)>>2, (x)|=(x)>>4, (x)|=(x)>>8, (x)|=(x)>>16, (x)|=(x)>>32, ++(x))
 
+#define kom_reverse(type, n, a) do { \
+		size_t i; \
+		for (i = 0; i < (n)>>1; ++i) { \
+			type t = a[(n) - 1 - i]; \
+			a[(n) - 1 - i] = a[i], a[i] = t; \
+		} \
+	} while (0)
+
 #define kom_assert(cond, msg) if ((cond) == 0) kom_panic(__func__, (msg))
 
 #ifndef KSTRING_T

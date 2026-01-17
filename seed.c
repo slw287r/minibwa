@@ -36,7 +36,7 @@ void mb_seed_intv(void *km, const mb_bwt_t *bwt, int32_t len, const uint8_t *seq
 			continue;
 		x = st;
 		sub_min_len = (en - st) / 2 > min_len? (en - st) / 2 : min_len;
-		do {
+		do { // TODO: if two SMEMs have large overlaps, we may find the same sub intervals in both
 			x = mb_bwt_smem(bwt, len, seq, x, sub_min_len, v->a[i].size + 1, v->a[i].size + 1, &p);
 			if (p.size > v->a[i].size) {
 				Kgrow(km, mb_sai_t, v->a, v->n, v->m);
@@ -81,7 +81,28 @@ static void process_batch(void *km, const mb_idx_t *idx, const anchor_aux_t *aux
 	}
 }
 
-void mb_anchor(void *km, const mb_idx_t *idx, const mb_sai_v *u, int32_t qlen, int32_t max_occ, mb_anchor_v *v)
+static void mb_anchor_sort_dedup(mb_sai_v *u)
+{
+	int64_t i, i0, j;
+	// sort by ::x[0] and then by ::size
+	if (u->n > 1) radix_sort_mb_sai0(u->a, u->a + u->n);
+	for (i = 1, i0 = 0; i <= u->n; ++i) {
+		if (i == u->n || u->a[i].x[0] != u->a[i0].x[0]) {
+			if (i - i0 > 1) {
+				radix_sort_mb_sais(&u->a[i0], &u->a[i]);
+				kom_reverse(mb_sai_t, u->n, u->a);
+			}
+			i0 = i;
+		}
+	}
+	// dedup
+	for (i = 1, j = 0; i < u->n; ++i)
+		if (!(u->a[i].x[0] == u->a[j].x[0] && u->a[i].size == u->a[j].size && u->a[i].info == u->a[j].info))
+			u->a[++j] = u->a[i];
+	u->n = j + 1;
+}
+
+void mb_anchor(void *km, const mb_idx_t *idx, mb_sai_v *u, int32_t qlen, int32_t max_occ, mb_anchor_v *v)
 {
 	const int batch_size = 20;
 	int32_t n_aux, m, m_a;
@@ -92,16 +113,7 @@ void mb_anchor(void *km, const mb_idx_t *idx, const mb_sai_v *u, int32_t qlen, i
 
 	v->n = 0;
 	if (u->n == 0) return; // no anchors
-
-	// sort by ::x[0] and then by ::size
-	if (u->n > 1) radix_sort_mb_sai0(u->a, u->a + u->n);
-	for (i = 1, i0 = 0; i <= u->n; ++i) {
-		if (i == u->n || u->a[i].x[0] != u->a[i0].x[0]) {
-			if (i - i0 > 1)
-				radix_sort_mb_sais(&u->a[i0], &u->a[i]);
-			i0 = i;
-		}
-	}
+	mb_anchor_sort_dedup(u);
 
 	for (i = 0, k = 0; i < u->n; ++i) // pre-calculate the size of v->a
 		k += u->a[i].size < max_occ? u->a[i].size : max_occ;

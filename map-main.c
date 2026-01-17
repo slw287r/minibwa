@@ -88,15 +88,19 @@ static void *worker_pipeline(void *shared, int step, void *in)
 		if (!(p->opt->flag & MB_F_NO_KALLOC)) km = km_init();
 
 		for (k = 0; k < s->n_frag; ++k) {
-			int32_t seg_st = s->seg_off[k], seg_en = s->seg_off[k] + s->n_seg[k];
+			int32_t seg_st = s->seg_off[k], seg_en = s->seg_off[k] + s->n_seg[k], n_sec = 0;
 			out.l = 0;
 			for (i = seg_st; i < seg_en; ++i) {
 				mb_bseq1_t *t = &s->seq[i];
 				if (s->n_hit[i] > 0) { // the query has at least one hit
 					for (j = 0; j < s->n_hit[i]; ++j) {
 						const mb_hit_t *h = &s->hit[i][j];
-						if (h->parent == h->id || (p->opt->flag & MB_F_OUT_2ND))
+						if (h->parent == h->id) { // primary
 							mb_fmt_paf_basic(&out, idx->l2b, t->l_seq, h, t->name);
+						} else if (n_sec < p->opt->out_n) { // secondary
+							mb_fmt_paf_basic(&out, idx->l2b, t->l_seq, h, t->name);
+							++n_sec;
+						}
 					}
 				} else if (p->opt->flag & MB_F_WRITE_UNMAP) { // TODO: output unmapped reads
 				}
@@ -173,6 +177,7 @@ static ko_longopt_t long_options[] = {
 	{ "dbg-anchor",   ko_no_argument,       602 },
 	{ "dbg-seed",     ko_no_argument,       603 },
 	{ "dbg-qname",    ko_no_argument,       604 },
+	{ "outn",         ko_required_argument, 605 },
 	{ "version",      ko_no_argument,       901 },
 	{ 0, 0, 0 }
 };
@@ -194,7 +199,7 @@ static int usage(FILE *fp, const mb_opt_t *opt)
 	fprintf(fp, "  Input/Output:\n");
 	fprintf(fp, "    -t INT           number of worker threads [%d]\n", opt->n_thread);
 	fprintf(fp, "    -K NUM           process NUM-bp query sequences in a batch [500m]\n");
-	fprintf(fp, "    -S               output secondary alignment\n");
+	fprintf(fp, "    --outn=INT       output up to INT secondary alignments [0]\n");
 	fprintf(fp, "    --version        print version number\n");
 	return fp == stdout? 0 : 1;
 }
@@ -214,7 +219,7 @@ static inline void yes_or_no(mb_opt_t *opt, uint64_t flag, int long_idx, const c
 #endif
 int main_map(int argc, char *argv[])
 {
-	const char *opt_str = "x:o:k:c:m:p:A:B:b:O:E:t:K:N:CS";
+	const char *opt_str = "x:o:k:c:m:p:A:B:b:O:E:t:K:N:C";
 	int32_t c;
 	mb_idx_t *idx;
 	mb_opt_t mo;
@@ -246,7 +251,7 @@ int main_map(int argc, char *argv[])
 		else if (c == 'A') mo.a = atoi(o.arg);
 		else if (c == 'B') mo.b = atoi(o.arg);
 		else if (c == 'C') mo.flag |= MB_F_NO_ALN;
-		else if (c == 'S') mo.flag |= MB_F_OUT_2ND;
+		// else if (c == 'S') mo.flag |= MB_F_OUT_2ND;
 		else if (c == 'o') fn_out = o.arg;
 		else if (c == 't') mo.n_thread = atoi(o.arg);
 		else if (c == 'K') mo.mb_size = kom_parse_num(o.arg, 0);
@@ -260,6 +265,8 @@ int main_map(int argc, char *argv[])
 			kom_dbg_flag |= MB_DBG_SEED;
 		} else if (c == 604) { // --dbg-qname
 			kom_dbg_flag |= MB_DBG_QNAME;
+		} else if (c == 605) { // --outn
+			mo.out_n = atoi(o.arg);
 		} else if (c == 901) { // --version
 			puts(MB_VERSION);
 			exit(0);

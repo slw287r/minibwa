@@ -13,7 +13,6 @@
 #define MB_F_EQX              (0x20LL)   // = in CIGAR
 #define MB_F_NO_KALLOC        (0x40LL)   // disable kalloc
 #define MB_F_NO_ALN           (0x80LL)   // skip base alignment
-#define MB_F_OUT_2ND          (0x100LL)  // write secondary alignments
 
 #define MB_CIGAR_MATCH      0
 #define MB_CIGAR_INS        1
@@ -62,6 +61,7 @@ typedef struct {
 	int32_t min_ksw_len;
 	// input/output options
 	int32_t n_thread; // number of worker threads, excluding I/O threads
+	int32_t out_n;    // max number of secondary alignments to output
 	int32_t seed;
 	int64_t mb_size;  // mini-batch size
 	int64_t max_sw_mat;

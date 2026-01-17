@@ -42,7 +42,7 @@ void mb_bwtgen(const char *fn_pac, const char *fn_bwt, int block_size);
 
 // defined in seed.c
 void mb_seed_intv(void *km, const mb_bwt_t *bwt, int32_t len, const uint8_t *seq, int32_t min_len, int32_t max_sub_occ, mb_sai_v *v);
-void mb_anchor(void *km, const mb_idx_t *idx, const mb_sai_v *u, int32_t qlen, int32_t max_occ, mb_anchor_v *v);
+void mb_anchor(void *km, const mb_idx_t *idx, mb_sai_v *u, int32_t qlen, int32_t max_occ, mb_anchor_v *v);
 
 // defined in lchain.c
 mb_anchor_t *mb_lchain_dp(void *km, int max_dist_x, int max_dist_y, int bw, int max_skip, int max_iter, int min_sc, float chn_pen_gap, float chn_pen_skip,
