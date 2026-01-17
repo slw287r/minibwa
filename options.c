@@ -7,7 +7,7 @@ void mb_opt_init(mb_opt_t *opt)
 	// seeding options
 	opt->min_len = 19;
 	opt->max_sub_occ = 10;
-	opt->max_occ = 500;
+	opt->max_occ = 100;
 	// chaining options
 	opt->max_chain_skip = 25;
 	opt->max_chain_iter = 5000;
@@ -40,7 +40,7 @@ int mb_opt_preset(mb_opt_t *opt, const char *preset)
 		opt->bw = opt->bw_long = 100;
 		opt->max_gap = 100;
 		opt->pri_ratio = 0.5f;
-		opt->best_n = 501; // match ::max_occ
+		opt->best_n = 101; // match ::max_occ
 		opt->end_bonus = 10;
 		opt->min_chain_score = 25;
 		opt->min_ksw_len = 20;
