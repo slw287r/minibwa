@@ -251,10 +251,11 @@ int64_t mb_bwt_back(const mb_bwt_t *f, uint32_t len, const uint8_t *q, int64_t s
 {
 	int64_t i;
 	mb_sai_t ok[4];
+	if (q[pos] > 3) return pos;
 	if (f->pre && pos - st >= f->pre_len) { // then use precomputed k-mer index instead of base-by-base extension
 		uint64_t z = 0, l = 0;
 		for (i = pos; l < f->pre_len; --i, ++l) // get the k-mer
-			z = z << 2 | q[i];
+			z = z << 2 | q[i];                  // NB: this loop doesn't check ambigous bases
 		assert(z < 1<<f->pre_len*2);
 		*p = f->pre[z];
 	}

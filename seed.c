@@ -16,6 +16,7 @@ KRADIX_SORT_INIT(mb_anchor, mb_anchor_t, key_anchor, 8)
 
 void mb_seed_intv(void *km, const mb_bwt_t *bwt, int32_t len, const uint8_t *seq, int32_t min_len, int32_t max_sub_occ, mb_sai_v *v)
 {
+	const int max_back = 5;
 	int64_t x = 0, i, n_a0;
 	mb_sai_t p;
 
@@ -36,7 +37,7 @@ void mb_seed_intv(void *km, const mb_bwt_t *bwt, int32_t len, const uint8_t *seq
 			continue;
 		x = st;
 		sub_min_len = (en - st) / 2 > min_len? (en - st) / 2 : min_len;
-		do { // TODO: if two SMEMs have large overlaps, we may find the same sub intervals in both
+		do { // if two SMEMs have large overlaps, we may find the same sub intervals in both. A rare case not worth optimizing
 			x = mb_bwt_smem(bwt, len, seq, x, sub_min_len, v->a[i].size + 1, &p);
 			if (p.size > v->a[i].size) {
 				Kgrow(km, mb_sai_t, v->a, v->n, v->m);

@@ -48,6 +48,7 @@ void mb_bwt_rank2a(const mb_bwt_t *bwt, uint64_t k, uint64_t l, uint64_t cntk[4]
 
 void mb_bwt_extend(const mb_bwt_t *bwt, const mb_sai_t *ik, mb_sai_t ok[4], int is_back);
 void mb_bwt_count_kmer(const mb_bwt_t *bwt, int32_t depth, mb_sai_t *a);
+int64_t mb_bwt_back(const mb_bwt_t *f, uint32_t len, const uint8_t *q, int64_t st, int64_t pos, int64_t min_occ, mb_sai_t *p);
 int64_t mb_bwt_smem(const mb_bwt_t *f, uint32_t len, const uint8_t *q, int64_t x, int64_t min_len, int64_t min_occ, mb_sai_t *p);
 
 void mb_bwt_gen_sa(mb_bwt_t *bwt, uint32_t sa_bit);
