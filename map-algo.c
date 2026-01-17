@@ -436,6 +436,7 @@ mb_hit_t *mb_map(const mb_opt_t *opt, const mb_idx_t *idx, int64_t qlen, const c
 	hash ^= mb_hash64(qlen) + mb_hash64(opt->seed);
 	hash  = mb_hash64(hash);
 
+	// initial chaining
 	chn_pen_gap = opt->chain_gap_scale * .01 * opt->min_len;
 	chn_pen_skip = opt->chain_skip_scale * .01 * opt->min_len;
 	mb_seed_intv(b->km, idx->bwt, qlen, seq, opt->min_len, opt->max_sub_occ, &u);
@@ -447,16 +448,21 @@ mb_hit_t *mb_map(const mb_opt_t *opt, const mb_idx_t *idx, int64_t qlen, const c
 	v.a = 0; v.n = v.m = 0; // ownership transferred to a
 	kfree(b->km, u.a); // no longer needed
 
+	// chain ordering
 	hit = mb_gen_hit(b->km, hash, qlen, idx->l2b, n_hit, w, a);
 	kfree(b->km, w);
 	mb_set_parent(b->km, opt->mask_level, opt->mask_len, n_hit, hit, opt->a * 2 + opt->b, 0);
 	mb_select_sub(b->km, opt->pri_ratio, opt->min_len * 2, opt->best_n, &n_hit, hit);
+
+	// base alignment
 	if (!(opt->flag & MB_F_NO_ALN)) {
 		hit = mb_align_skeleton(b->km, opt, idx, qlen, seq0, &n_hit, hit, a);
 		mb_set_parent(b->km, opt->mask_level, opt->mask_len, n_hit, hit, opt->a * 2 + opt->b, 0);
 		mb_select_sub(b->km, opt->pri_ratio, opt->min_len * 2, opt->best_n, &n_hit, hit);
 	}
 	mb_set_mapq(b->km, n_hit, hit, opt->min_chain_score, opt->a, !(opt->flag & MB_F_LONG));
+
+	// clean up
 	kfree(b->km, a);
 	kfree(b->km, seq);
 	*n_hit_ = n_hit;

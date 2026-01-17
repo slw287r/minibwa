@@ -132,15 +132,15 @@ static mb_anchor_t *compact_a(void *km, int32_t n_u, uint64_t *u, int32_t n_v, i
 // Compute chaining score between two anchors
 static inline int32_t comput_sc(const mb_anchor_t *ai, const mb_anchor_t *aj, int32_t max_dist_x, int32_t max_dist_y, int32_t bw, float chn_pen_gap, float chn_pen_skip)
 {
-	int32_t dq = ai->qpos - aj->qpos, dr, dd, dg, q_span, sc;
-	if (dq <= 0 || dq > max_dist_x) return INT32_MIN;
+	int64_t dq = ai->qpos - aj->qpos, dr, dd, dg, q_span, sc;
+	if (dq <= 0 || dq > max_dist_x + ai->len) return INT32_MIN;
 	// Check if on same target; use tid for comparison
 	if (ai->sid != aj->sid) return INT32_MIN;
-	dr = (int32_t)(ai->tpos - aj->tpos);
-	if (dr <= 0 || dq > max_dist_y) return INT32_MIN;
+	dr = ai->tpos - aj->tpos;
+	if (dr <= 0 || dq > max_dist_y + ai->len) return INT32_MIN;
 	dd = dr > dq? dr - dq : dq - dr;
 	if (dd > bw) return INT32_MIN;
-	if (dr > max_dist_y) return INT32_MIN;
+	if (dr > max_dist_y + ai->len) return INT32_MIN;
 	dg = dr < dq? dr : dq;
 	// Use successor span for variable-length anchors (SMEMs)
 	q_span = ai->len;
@@ -187,7 +187,7 @@ mb_anchor_t *mb_lchain_dp(void *km, int max_dist_x, int max_dist_y, int bw, int 
 	for (i = 0, max_ii = -1; i < n; ++i) {
 		int64_t max_j = -1, end_j;
 		int32_t max_f = a[i].len, n_skip = 0;
-		while (st < i && (a[i].sid != a[st].sid || (int64_t)(a[i].tpos - a[st].tpos) > max_dist_x)) ++st;
+		while (st < i && (a[i].sid != a[st].sid || a[i].tpos - a[st].tpos > max_dist_x + a[i].len)) ++st;
 		if (i - st > max_iter) st = i - max_iter;
 		for (j = i - 1; j >= st; --j) {
 			int32_t sc;
@@ -204,7 +204,7 @@ mb_anchor_t *mb_lchain_dp(void *km, int max_dist_x, int max_dist_y, int bw, int 
 			if (p[j] >= 0) t[p[j]] = i;
 		}
 		end_j = j;
-		if (max_ii < 0 || (int64_t)(a[i].tpos - a[max_ii].tpos) > max_dist_x) {
+		if (max_ii < 0 || a[i].tpos - a[max_ii].tpos > max_dist_x + a[i].len) {
 			int32_t max = INT32_MIN;
 			max_ii = -1;
 			for (j = i - 1; j >= st; --j)
@@ -218,7 +218,7 @@ mb_anchor_t *mb_lchain_dp(void *km, int max_dist_x, int max_dist_y, int bw, int 
 		}
 		f[i] = max_f, p[i] = max_j;
 		v[i] = max_j >= 0 && v[max_j] > max_f? v[max_j] : max_f; // v[] keeps the peak score up to i; f[] is the score ending at i, not always the peak
-		if (max_ii < 0 || ((int64_t)(a[i].tpos - a[max_ii].tpos) <= max_dist_x && f[max_ii] < f[i]))
+		if (max_ii < 0 || (a[i].tpos - a[max_ii].tpos <= max_dist_x + a[i].len && f[max_ii] < f[i]))
 			max_ii = i;
 		if (mmax_f < max_f) mmax_f = max_f;
 	}
@@ -246,8 +246,8 @@ KRMQ_INIT(lc_elem, lc_elem_t, head, lc_elem_cmp, lc_elem_lt2)
 
 static inline int32_t comput_sc_simple(const mb_anchor_t *ai, const mb_anchor_t *aj, float chn_pen_gap, float chn_pen_skip, int32_t *exact, int32_t *width)
 {
-	int32_t dq = ai->qpos - aj->qpos, dr, dd, dg, q_span, sc;
-	dr = (int32_t)(ai->tpos - aj->tpos);
+	int64_t dq = ai->qpos - aj->qpos, dr, dd, dg, q_span, sc;
+	dr = ai->tpos - aj->tpos;
 	*width = dd = dr > dq? dr - dq : dq - dr;
 	dg = dr < dq? dr : dq;
 	q_span = ai->len;
@@ -262,6 +262,7 @@ static inline int32_t comput_sc_simple(const mb_anchor_t *ai, const mb_anchor_t 
 	return sc;
 }
 
+// TODO: check if this function works with variable-length seeds
 mb_anchor_t *mb_lchain_rmq(void *km, int max_dist, int max_dist_inner, int bw, int max_chn_skip, int cap_rmq_size, int min_sc, float chn_pen_gap, float chn_pen_skip,
 						   int64_t n, mb_anchor_t *a, int *n_u_, uint64_t **_u)
 {
@@ -308,7 +309,7 @@ mb_anchor_t *mb_lchain_rmq(void *km, int max_dist, int max_dist_inner, int bw, i
 			i0 = i;
 		}
 		// get rid of active chains out of range
-		while (st < i && (a[i].sid != a[st].sid || (int64_t)(a[i].tpos - a[st].tpos) > max_dist || krmq_size(head, root) > cap_rmq_size)) {
+		while (st < i && (a[i].sid != a[st].sid || a[i].tpos - a[st].tpos > max_dist + a[i].len || krmq_size(head, root) > cap_rmq_size)) {
 			s.y = a[st].qpos, s.i = st;
 			if ((q = krmq_find(lc_elem, root, &s, 0)) != 0) {
 				q = krmq_erase(lc_elem, &root, q, 0);
@@ -317,7 +318,7 @@ mb_anchor_t *mb_lchain_rmq(void *km, int max_dist, int max_dist_inner, int bw, i
 			++st;
 		}
 		if (max_dist_inner > 0)  { // similar to the block above, but applied to the inner tree
-			while (st_inner < i && (a[i].sid != a[st_inner].sid || (int64_t)(a[i].tpos - a[st_inner].tpos) > max_dist_inner || krmq_size(head, root_inner) > cap_rmq_size)) {
+			while (st_inner < i && (a[i].sid != a[st_inner].sid || a[i].tpos - a[st_inner].tpos > max_dist_inner + a[i].len || krmq_size(head, root_inner) > cap_rmq_size)) {
 				s.y = a[st_inner].qpos, s.i = st_inner;
 				if ((q = krmq_find(lc_elem, root_inner, &s, 0)) != 0) {
 					q = krmq_erase(lc_elem, &root_inner, q, 0);
