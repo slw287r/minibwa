@@ -39,6 +39,39 @@ int64_t l2b_getseq(const l2b_t *l2b, int64_t tid, int64_t st, int64_t en, uint8_
 	for (i = st; i < en; ++i)
 		seq[i - st] = l2b_get0(l2b, i);
 	return en - st;
+
+}
+
+int64_t l2b_getambi(const l2b_t *l2b, int64_t tid, int64_t st, int64_t en, int32_t *n_ambi)
+{
+	int64_t g_beg, g_end, lo, hi, mid, i_st, i_en;
+	*n_ambi = 0;
+	if (tid < 0 || tid >= l2b->n_ctg) return -1;
+	if (st < 0) st = 0;
+	if (en > l2b->ctg[tid].len) en = l2b->ctg[tid].len;
+	if (st >= en) return -1;
+	g_beg = l2b->ctg[tid].off + st;
+	g_end = l2b->ctg[tid].off + en;
+
+	lo = 0, hi = l2b->n_ambi;
+	while (lo < hi) {
+		mid = (lo + hi) / 2;
+		if (l2b->ambi[mid].en > g_beg) hi = mid;
+		else lo = mid + 1;
+	}
+	i_st = lo;
+
+	lo = i_st, hi = l2b->n_ambi;
+	while (lo < hi) {
+		mid = (lo + hi) / 2;
+		if (l2b->ambi[mid].st >= g_end) hi = mid;
+		else lo = mid + 1;
+	}
+	i_en = lo;
+
+	*n_ambi = i_en - i_st;
+	if (*n_ambi == 0) return -1;
+	return i_st;
 }
 
 static void l2b_format_seq(uint64_t len, char *seq, uint64_t *rng)
