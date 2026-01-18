@@ -301,6 +301,129 @@ int64_t mb_bwt_smem(const mb_bwt_t *f, uint32_t len, const uint8_t *q, int64_t x
 	return i + 1;
 }
 
+/**************
+ * Batch SMEM *
+ **************/
+
+typedef struct { // a simplified version of kdq
+	int32_t front, count, cap;
+	int32_t *a;
+} tiny_queue_t;
+
+static void tq_init(void *km, tiny_queue_t *q, int32_t n)
+{
+	q->cap = n;
+	kom_roundup32(q->cap);
+	q->a = Kcalloc(km, int32_t, q->cap);
+}
+
+static inline void tq_push(tiny_queue_t *q, int32_t x)
+{
+	q->a[((q->count++) + q->front) & (q->cap - 1)] = x;
+}
+
+static inline int32_t tq_shift(tiny_queue_t *q)
+{
+	int32_t x;
+	if (q->count == 0) return -1;
+	x = q->a[q->front++];
+	q->front &= q->cap - 1;
+	--q->count;
+	return x;
+}
+
+void mb_bwt_smem_batch(void *km, const mb_bwt_t *bwt, int32_t n, mb_smem_entry_t *a)
+{
+	int32_t i;
+	tiny_queue_t tq;
+
+	// initialize
+	tq_init(km, &tq, n);
+	for (i = 0; i < n; ++i) {
+		mb_smem_entry_t *s = &a[i];
+		tq_push(&tq, i);
+		s->stage = 1;
+		s->x = s->st;
+		s->v->n = 0;
+		if (s->v->m < 64) { // preallocate to avoid frequent krealloc(), which can be slow
+			s->v->m = 64;
+			s->v->a = Krealloc(km, mb_sai_t, s->v->a, s->v->m);
+		}
+	}
+
+	// core loop
+	while (tq.count > 0) {
+		mb_sai_t ok[4];
+		int32_t idx;
+		mb_smem_entry_t *s;
+		idx = tq_shift(&tq);
+		s = &a[idx];
+		if (s->stage == 1) { // set interval for the first backward pass in smem; require ->x
+			int32_t i, xn;
+			if (s->en - s->x < s->min_len)
+				continue; // IMPORTANT: this skips the tq_push() at the end of this long while loop
+			for (i = s->x, xn = -1; i < s->x + s->min_len; ++i) // find the position of the last N
+				if (s->q[i] > 3) xn = i;
+			if (xn >= 0) { // skip N and stay in stage1
+				s->x = xn + 1;
+			} else { // TODO: make this work for k-mer caching
+				s->i = s->x + s->min_len - 1;
+				mb_bwt_set_intv(bwt, s->q[s->i], &s->p);
+				s->i--;
+				s->stage = 2;
+			}
+		} else if (s->stage == 2) { // first backward pass; require ->{i,p}
+			int32_t c = s->q[s->i];
+			assert(c < 4); // shouldn't happen
+			mb_bwt_extend(bwt, &s->p, ok, 1);
+			if (ok[c].size < s->min_occ) { // move to stage3
+				mb_bwt_block_prefetch(bwt, s->p.x[1]); // prefetch for the forward pass
+				mb_bwt_block_prefetch(bwt, s->p.x[1] + s->p.size);
+				s->i = s->x + s->min_len;
+				s->stage = 3;
+			} else { // stay in stage2
+				s->p = ok[c];
+				mb_bwt_block_prefetch(bwt, s->p.x[0]); // prefetch for the next backward iteration
+				mb_bwt_block_prefetch(bwt, s->p.x[0] + s->p.size);
+			}
+		} else if (s->stage == 3) { // forward pass; require ->{i,p}
+			int32_t c = 3 - (int32_t)s->q[s->i];
+			if (c >= 0) mb_bwt_extend(bwt, &s->p, ok, 0);
+			if (c >= 0 && ok[c].size >= s->min_occ) { // stay in stage3
+				s->p = ok[c];
+				mb_bwt_block_prefetch(bwt, s->p.x[1]);
+				mb_bwt_block_prefetch(bwt, s->p.x[1] + s->p.size);
+			} else {
+				s->p.info = (uint64_t)s->x << 32 | s->i;
+				Kgrow(km, mb_sai_t, s->v->a, s->v->n, s->v->m);
+				s->v->a[s->v->n++] = s->p; // save the interval
+				if (c < 0) { // if N, move back to stage1
+					s->x = s->i + 1;
+					s->stage = 1;
+				} else { // otherwise, move to stage4; TODO: make this work for k-mer caching
+					mb_bwt_set_intv(bwt, s->q[s->i], &s->p);
+					s->i--;
+					s->stage = 4;
+				}
+			}
+		} else if (s->stage == 4) { // second backward pass; similar to stage 2
+			int32_t c = s->q[s->i];
+			assert(c < 4); // shouldn't happen
+			mb_bwt_extend(bwt, &s->p, ok, 1);
+			if (ok[c].size < s->min_occ) {
+				s->x = s->i + 1;
+				s->stage = 1;
+			} else {
+				s->p = ok[c];
+				mb_bwt_block_prefetch(bwt, s->p.x[0]);
+				mb_bwt_block_prefetch(bwt, s->p.x[0] + s->p.size);
+			}
+		}
+		tq_push(&tq, idx);
+	}
+	kfree(km, tq.a);
+}
+
 /***************************
  * Suffix array operations *
  ***************************/

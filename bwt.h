@@ -28,6 +28,18 @@ typedef struct {
 
 typedef struct { size_t n, m; mb_sai_t *a; } mb_sai_v;
 
+typedef struct {
+	// input before calling
+	int32_t min_len, min_occ;
+	int32_t st, en;
+	const uint8_t *q;
+	mb_sai_v *v; // output
+	// internal state
+	int32_t stage;
+	int32_t x, i;
+	mb_sai_t p;
+} mb_smem_entry_t;
+
 #ifdef __cplusplus
 extern "C" {
 #endif
@@ -50,6 +62,7 @@ void mb_bwt_extend(const mb_bwt_t *bwt, const mb_sai_t *ik, mb_sai_t ok[4], int 
 void mb_bwt_count_kmer(const mb_bwt_t *bwt, int32_t depth, mb_sai_t *a);
 int64_t mb_bwt_back(const mb_bwt_t *f, uint32_t len, const uint8_t *q, int64_t st, int64_t pos, int64_t min_occ, mb_sai_t *p);
 int64_t mb_bwt_smem(const mb_bwt_t *f, uint32_t len, const uint8_t *q, int64_t x, int64_t min_len, int64_t min_occ, mb_sai_t *p);
+void mb_bwt_smem_batch(void *km, const mb_bwt_t *bwt, int32_t n, mb_smem_entry_t *a);
 
 void mb_bwt_gen_sa(mb_bwt_t *bwt, uint32_t sa_bit);
 uint64_t mb_bwt_sa(const mb_bwt_t *bwt, uint64_t k);
@@ -62,7 +75,6 @@ static inline void mb_bwt_set_intv(const mb_bwt_t *bwt, int c, mb_sai_t *ik)
 	ik->size = bwt->L2[c+1] - bwt->L2[c];
 	ik->info = 0;
 }
-
 #ifdef __cplusplus
 }
 #endif
