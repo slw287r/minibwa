@@ -7,6 +7,69 @@
 #include "kalloc.h"
 KSEQ_INIT(gzFile, gzread);
 
+typedef struct {
+	char *name;
+	int32_t l_seq;
+	uint8_t *seq;
+	mb_sai_v v;
+} batch_seq1_t;
+
+static void batch_smem(const mb_idx_t *idx, int32_t n, batch_seq1_t *t, int32_t min_len, int32_t min_occ)
+{
+	int32_t i;
+	mb_smem_entry_t *s;
+	s = kom_calloc(mb_smem_entry_t, n);
+	for (i = 0; i < n; ++i) {
+		batch_seq1_t *ti = &t[i];
+		mb_smem_entry_t *si = &s[i];
+		si->min_len = min_len, si->min_occ = min_occ;
+		si->st = 0, si->en = ti->l_seq;
+		si->q = ti->seq;
+		si->v = &ti->v;
+		si->v->n = 0;
+	}
+	mb_bwt_smem_batch(0, idx->bwt, n, s);
+	free(s);
+}
+
+static void write_intv(const mb_idx_t *idx, const mb_sai_t *p, int32_t max_size_out, uint64_t *sa, kstring_t *out)
+{
+	int64_t len;
+	kom_sprintf_lite(out, "EM\t%ld\t%ld\t%ld", p->info>>32, p->info&0xffffffffull, p->size);
+	len = (p->info&0xffffffffull) - (p->info>>32);
+	if (p->size <= max_size_out) {
+		int64_t j, n_sa = p->size;
+		for (j = 0; j < p->size; ++j)
+			sa[j] = p->x[0] + j;
+		mb_bwt_sa_batch(0, idx->bwt, p->size, sa);
+		for (j = 0; j < n_sa; ++j) {
+			int rev;
+			int64_t cid, cst;
+			cid = l2b_intv2cid(idx->l2b, sa[j], sa[j] + len, &cst, &rev);
+			if (cid < 0) kom_sprintf_lite(out, "\t.");
+			else kom_sprintf_lite(out, "\t%s:%c%ld", idx->l2b->ctg[cid].name, "+-"[rev], cst + 1);
+		}
+	} else kom_sprintf_lite(out, "\t*");
+	kom_sprintf_lite(out, "\n");
+}
+
+static void process_batch(const mb_idx_t *idx, int32_t n, batch_seq1_t *t, int32_t min_len, int32_t min_occ, int32_t max_size_out, kstring_t *out)
+{
+	int32_t i, j;
+	uint64_t *sa;
+	batch_smem(idx, n, t, min_len, min_occ);
+	sa = kom_calloc(uint64_t, max_size_out);
+	for (i = 0; i < n; ++i) {
+		batch_seq1_t *ti = &t[i];
+		kom_sprintf_lite(out, "SQ\t%s\t%d\n", ti->name, ti->l_seq);
+		for (j = 0; j < ti->v.n; ++j)
+			write_intv(idx, &ti->v.a[j], max_size_out, sa, out);
+	}
+	kom_sprintf_lite(out, "//\n");
+	fputs(out->s, stdout);
+	free(sa);
+}
+
 int main_fastmap(int argc, char *argv[])
 {
 	mb_idx_t *idx;
@@ -14,18 +77,18 @@ int main_fastmap(int argc, char *argv[])
 	ketopt_t o = KETOPT_INIT;
 	gzFile fp;
 	kseq_t *ks;
-	int c, min_len = 19, min_occ = 1, max_size_out = 20;
-	int use_sa1 = 0;
+	int c, min_len = 19, min_occ = 1, max_size_out = 20, max_seq = 1;
 	uint64_t *sa, m_a = 0;
 	mb_sai_t *a = 0;
 	kstring_t out = {0};
+	int32_t n_seq;
+	batch_seq1_t *seq;
 
-
-	while ((c = ketopt(&o, argc, argv, 1, "l:s:w:1", 0)) >= 0) {
+	while ((c = ketopt(&o, argc, argv, 1, "l:s:w:b:", 0)) >= 0) {
 		if (c == 'l') min_len = atoi(o.arg);
 		else if (c == 's') min_occ = atoi(o.arg);
 		else if (c == 'w') max_size_out = atoi(o.arg);
-		else if (c == '1') use_sa1 = 1;
+		else if (c == 'b') max_seq = atoi(o.arg);
 	}
 
 	if (argc - o.ind < 2) {
@@ -34,7 +97,6 @@ int main_fastmap(int argc, char *argv[])
 		fprintf(stderr, "  -l INT     min seed length [%d]\n", min_len);
 		fprintf(stderr, "  -s INT     min interval size [%d]\n", min_occ);
 		fprintf(stderr, "  -w INT     max interval size to output coordinates [%d]\n", max_size_out);
-		fprintf(stderr, "  -1         use unbatched sa\n");
 		return 1;
 	}
 
@@ -45,45 +107,27 @@ int main_fastmap(int argc, char *argv[])
 	ks = kseq_init(fp);
 	sa = kom_calloc(uint64_t, max_size_out);
 	while (kseq_read(ks) >= 0) {
-		int64_t x = 0, i, n_a = 0;
-		mb_sai_t p;
-		out.l = 0;
+		int64_t i;
 		for (i = 0; i < ks->seq.l; ++i)
 			ks->seq.s[i] = kom_nt4_table[(uint8_t)ks->seq.s[i]];
-		kom_sprintf_lite(&out, "SQ\t%s\t%ld\n", ks->name.s, ks->seq.l);
-		do {
-			x = mb_bwt_smem(bwt, ks->seq.l, (uint8_t*)ks->seq.s, x, min_len, min_occ, &p);
-			if (p.size > 0) {
-				kom_grow(mb_sai_t, a, n_a, m_a);
-				a[n_a++] = p;
-			}
-		} while (x < ks->seq.l);
-		for (i = 0; i < n_a; ++i) {
-			int64_t len;
-			kom_sprintf_lite(&out, "EM\t%ld\t%ld\t%ld", a[i].info>>32, a[i].info&0xffffffffull, a[i].size);
-			len = (a[i].info&0xffffffffull) - (a[i].info>>32);
-			if (a[i].size <= max_size_out) {
-				int64_t j, n_sa = a[i].size;
-				if (use_sa1) {
-					for (j = 0; j < a[i].size; ++j)
-						sa[j] = mb_bwt_sa(bwt, a[i].x[0] + j);
-				} else {
-					for (j = 0; j < a[i].size; ++j)
-						sa[j] = a[i].x[0] + j;
-					mb_bwt_sa_batch(0, bwt, a[i].size, sa);
+		if (max_seq > 1) {
+		} else {
+			int64_t x = 0, n_a = 0;
+			mb_sai_t p;
+			out.l = 0;
+			kom_sprintf_lite(&out, "SQ\t%s\t%ld\n", ks->name.s, ks->seq.l);
+			do {
+				x = mb_bwt_smem(bwt, ks->seq.l, (uint8_t*)ks->seq.s, x, min_len, min_occ, &p);
+				if (p.size > 0) {
+					kom_grow(mb_sai_t, a, n_a, m_a);
+					a[n_a++] = p;
 				}
-				for (j = 0; j < n_sa; ++j) {
-					int rev;
-					int64_t cid, cst;
-					cid = l2b_intv2cid(idx->l2b, sa[j], sa[j] + len, &cst, &rev);
-					if (cid < 0) kom_sprintf_lite(&out, "\t.");
-					else kom_sprintf_lite(&out, "\t%s:%c%ld", idx->l2b->ctg[cid].name, "+-"[rev], cst + 1);
-				}
-			} else kom_sprintf_lite(&out, "\t*");
-			kom_sprintf_lite(&out, "\n");
+			} while (x < ks->seq.l);
+			for (i = 0; i < n_a; ++i)
+				write_intv(idx, &a[i], max_size_out, sa, &out);
+			kom_sprintf_lite(&out, "//\n");
+			fputs(out.s, stdout);
 		}
-		kom_sprintf_lite(&out, "//\n");
-		fputs(out.s, stdout);
 	}
 	free(sa);
 	kseq_destroy(ks);

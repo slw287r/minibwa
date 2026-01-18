@@ -33,7 +33,7 @@ typedef struct {
 	int32_t min_len, min_occ;
 	int32_t st, en;
 	const uint8_t *q;
-	mb_sai_v *v; // output
+	mb_sai_v *v; // output; v->n is not set to 0
 	// internal state
 	int32_t stage;
 	int32_t x, i;
