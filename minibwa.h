@@ -53,7 +53,7 @@ typedef struct {
 	int32_t q, q2;    // gap open, long gap open
 	int32_t e, e2;    // gap extension, long gap extension
 	int32_t end_bonus;
-	int32_t min_dp_max;
+	int32_t min_dp_max; // min_dp_max*a is the min score
 	int32_t zdrop;
 	int32_t zdrop_inv;
 	int32_t min_ksw_len;
@@ -98,7 +98,7 @@ typedef struct {
 	int32_t mlen, blen;
 	int32_t mapq;
 	uint32_t hash;
-	uint32_t rev:1, pp:1, sam_pri:1, flt:1, inv:1, split:2, split_inv:1, rescued:1, dummy:23;
+	uint32_t rev:1, proper_pair:1, sam_pri:1, flt:1, inv:1, split:2, split_inv:1, rescued:1, dummy:23;
 	int32_t seg_id;
 	mb_extra_t *p;
 } mb_hit_t;

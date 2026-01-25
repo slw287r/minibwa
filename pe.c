@@ -1,6 +1,7 @@
 #include <stdio.h>
 #include <string.h>
 #include <stdlib.h>
+#include <assert.h>
 #include <math.h>
 #include "mbpriv.h"
 #include "kalloc.h"
@@ -103,14 +104,14 @@ static void mb_pair_hits(void *km, const mb_opt_t *opt, const l2b_t *l2b, int32_
 	int32_t r, i, k, n_pa, y[4], n_pp = 0, m_pp = 0;
 	mb128_t *pa, *pp = 0; // pp: proper pairs
 
-	ret->i[0] = ret->i[1] = ret->score = ret->sub_sc = -1, ret->n_sub = 0;
+	ret->i[0] = ret->i[1] = ret->score = ret->sub_sc = -1, ret->n_sub = ret->n_pp = 0;
 	if (n_hit[0] == 0 || n_hit[1] == 0) return;
 	pa = Kcalloc(km, mb128_t, n_hit[0] + n_hit[1]);
 	for (r = n_pa = 0; r < 2; ++r) {
 		for (i = 0; i < n_hit[r]; ++i) {
 			mb128_t *p = &pa[n_pa++];
 			mb_hit_t *h = &hit[r][i];
-			h->pp = 0;
+			h->proper_pair = 0;
 			p->x = l2b->ctg[h->tid].off + (h->rev? h->te : h->ts);
 			p->y = (uint64_t)i << 2 | (uint64_t)h->rev << 1 | r;
 		}
@@ -137,13 +138,13 @@ static void mb_pair_hits(void *km, const mb_opt_t *opt, const l2b_t *l2b, int32_
 				dist = pi->x - pk->x;
 				if (dist > pes[dir].hi) break;
 				if (dist < pes[dir].lo) continue;
-				hk->pp = hi->pp = 1; // paired
+				hk->proper_pair = hi->proper_pair = 1; // paired
 				ns = (dist - pes[dir].avg) / pes[dir].std; // normalized score
 				s = hk->p->dp_max + hi->p->dp_max + .721 * log(2. * erfc(fabs(ns) * MB_SQRT1_2)) * opt->a; // .721 = 1/log(4)
 				if (s < 0.) s = 0.;
 				if (n_pp == m_pp) Kgrow(km, mb128_t, pp, n_pp, m_pp);
 				q = &pp[n_pp++];
-				q->y = (pk->y&1) == 0? (uint64_t)k << 32 | i : (uint64_t)i << 32 | k; // upper bits: index to read[0]; lower: to read[1]
+				q->y = (pk->y&1) == 0? (uint64_t)(pk->y>>2) << 32 | (pi->y>>2) : (uint64_t)(pi->y>>2) << 32 | (pk->y>>2); // upper bits: index to read[0]
 				q->x = (uint64_t)(s + .499) << 32 | ((hk->hash ^ hi->hash) & 0xffffffffULL);
 			}
 		}
@@ -159,6 +160,7 @@ static void mb_pair_hits(void *km, const mb_opt_t *opt, const l2b_t *l2b, int32_
 			if (q->x > max) max = q->x, ret->i[0] = q->y>>32, ret->i[1] = (uint32_t)q->y;
 			else if (q->x > max2) max2 = q->x;
 		}
+		assert(ret->i[0] < n_hit[0] && ret->i[1] < n_hit[1]);
 		ret->score = max>>32, ret->sub_sc = max2>>32;
 		for (i = 0; i < n_pp; ++i)
 			if (pp[i].x>>32 <= ret->score - tmp)
@@ -200,7 +202,7 @@ static void mb_matesw_align(void *km, const mb_opt_t *opt, int32_t qlen, uint8_t
 		fputc('\n', stderr);
 	}
 	kfree(km, qp);
-	if (rst.score * opt->a >= opt->min_dp_max) {
+	if (rst.score >= opt->min_dp_max) {
 		int32_t te = rst.te + 1, qe = rst.qe + 1;
 		mb_seq_rev(qe, qseq);
 		mb_seq_rev(te, tseq);
@@ -208,7 +210,7 @@ static void mb_matesw_align(void *km, const mb_opt_t *opt, int32_t qlen, uint8_t
 		ksw_extz2_sse(km, qe, qseq, te, tseq, 5, mat, opt->q, opt->e, opt->bw, opt->zdrop, opt->end_bonus, KSW_EZ_EXTZ_ONLY|KSW_EZ_RIGHT|KSW_EZ_REV_CIGAR, ez);
 		mb_seq_rev(qe, qseq);
 		mb_seq_rev(te, tseq);
-		if (ez->n_cigar > 0 && ez->max >= opt->min_dp_max) {
+		if (ez->n_cigar > 0 && ez->max >= opt->min_dp_max * opt->a) {
 			mb_append_cigar(h, ez->n_cigar, ez->cigar);
 			h->rescued = 1;
 			h->qe = qe, h->te = te;
@@ -295,14 +297,14 @@ static int32_t mb_matesw(void *km, const mb_opt_t *opt, const l2b_t *l2b, int32_
 			rng ^= hit[r][i].hash, max[r] = max[r] > hit[r][i].p->dp_max? max[r] : hit[r][i].p->dp_max;
 	for (r = 0, n_res = 0; r < 2; ++r)
 		for (i = 0; i < n_hit[r]; ++i)
-			if (hit[r][i].pp == 0 && hit[r][i].p->dp_max >= max[r] - opt->pen_unpair)
+			if (hit[r][i].proper_pair == 0 && hit[r][i].p->dp_max >= max[r] - opt->pen_unpair)
 				++n_res;
 	if (n_res == 0) return 0; // nothing to rescue
 	if (n_res > opt->max_rescue) n_res = opt->max_rescue;
 	a = Kcalloc(km, uint64_t, n_res);
 	for (r = j = 0; r < 2; ++r) { // candidates for rescue
 		for (i = 0; i < n_hit[r]; ++i) {
-			if (hit[r][i].pp == 0 && hit[r][i].p->dp_max >= max[r] - opt->pen_unpair) { // reservior sampling
+			if (hit[r][i].proper_pair == 0 && hit[r][i].p->dp_max >= max[r] - opt->pen_unpair) { // reservior sampling
 				int32_t y;
 				y = j++ < n_res? j - 1 : (int32_t)(j * kom_u64todbl(kom_splitmix64(&rng)));
 				if (y < n_res) a[y] = (uint64_t)r << 32 | i;
@@ -343,22 +345,50 @@ static int32_t mb_matesw(void *km, const mb_opt_t *opt, const l2b_t *l2b, int32_
 
 void mb_pair(void *km, const mb_opt_t *opt, const l2b_t *l2b, int32_t n_hit[2], mb_hit_t *hit[2], const mb_pestat_t pes[4], int32_t qlen[2], char *const qseq[2])
 {
-	int32_t r, i;
+	int32_t r, i, score_se;
 	mb_pairaux_t paux;
+	mb_hit_t *h[2];
+
 	mb_pair_hits(km, opt, l2b, n_hit, hit, pes, &paux);
 	if (opt->max_rescue > 0) {
 		int32_t sub_diff = opt->a + opt->b > opt->q + opt->e? opt->a + opt->b : opt->q + opt->e;
-		if (mb_matesw(km, opt, l2b, n_hit, hit, pes, qlen, qseq) > 0)
-			mb_pair_hits(km, opt, l2b, n_hit, hit, pes, &paux); // pair again if new hits rescued
-		for (r = 0; r < 2; ++r) {
-			for (i = 0; i < n_hit[r]; ++i) {
-				mb_hit_t *h = &hit[r][i];
-				if (!h->rescued)
-					h->n_sub = h->subsc = h->p->dp_max2 = 0;
+		if (mb_matesw(km, opt, l2b, n_hit, hit, pes, qlen, qseq) > 0) {
+			for (r = 0; r < 2; ++r) {
+				for (i = 0; i < n_hit[r]; ++i) {
+					mb_hit_t *h = &hit[r][i];
+					if (!h->rescued)
+						h->n_sub = h->subsc = h->p->dp_max2 = 0;
+				}
+				mb_hit_sort(km, &n_hit[r], hit[r]);
+				mb_set_parent(km, opt->mask_level, opt->mask_len, n_hit[r], hit[r], sub_diff, 0);
+				mb_set_mapq(km, n_hit[r], hit[r], opt->min_chain_score, opt->a, !(opt->flag & MB_F_LONG));
 			}
-			mb_hit_sort(km, &n_hit[r], hit[r]);
-			mb_set_parent(km, opt->mask_level, opt->mask_len, n_hit[r], hit[r], sub_diff, 0);
-			mb_set_mapq(km, n_hit[r], hit[r], opt->min_chain_score, opt->a, !(opt->flag & MB_F_LONG));
+			mb_pair_hits(km, opt, l2b, n_hit, hit, pes, &paux); // pair again if new hits rescued
+		}
+	}
+	if (paux.n_pp == 0) return;
+
+	h[0] = &hit[0][paux.i[0]];
+	h[1] = &hit[1][paux.i[1]];
+	score_se = h[0]->p->dp_max + h[1]->p->dp_max;
+	if (paux.score >= score_se - opt->pen_unpair) {
+		int32_t mapq_pe, score2, s;
+		double identity;
+		identity = (double)(h[0]->mlen + h[1]->mlen) / (h[0]->blen + h[1]->blen);
+		score2 = paux.sub_sc > score_se - opt->pen_unpair? paux.sub_sc : score_se - opt->pen_unpair;
+		mapq_pe = (int)(6.02 * identity * identity * (paux.score - score2) / opt->a - 4.343f * log(paux.n_sub + 1) + .499);
+		if (mapq_pe > 60) mapq_pe = 60;
+		if (mapq_pe == 0 && paux.score > score2) mapq_pe = 1;
+		for (s = 0; s < 2; ++s) {
+			if (h[s]->mapq < mapq_pe)
+				h[s]->mapq = (int32_t)(.2 * h[s]->mapq + .8 * mapq_pe + .499);
+			if (h[s]->id != h[s]->parent) { // then lift to primary and update parent
+				mb_hit_t *p = &hit[s][h[s]->parent];
+				for (i = 0; i < n_hit[s]; ++i)
+					if (hit[s][i].parent == p->id)
+						hit[s][i].parent = h[s]->id;
+				p->mapq = 0;
+			}
 		}
 	}
 }

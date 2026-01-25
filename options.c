@@ -42,7 +42,7 @@ int mb_opt_preset(mb_opt_t *opt, const char *preset)
 	if (strcmp(preset, "sr") == 0) {
 		opt->flag |= MB_F_PE;
 		opt->min_len = 19;
-		opt->min_dp_max = 60;
+		opt->min_dp_max = 30;
 		opt->bw = opt->bw_long = 150;
 		opt->max_gap = 150;
 		opt->pri_ratio = 0.5f;
@@ -55,7 +55,7 @@ int mb_opt_preset(mb_opt_t *opt, const char *preset)
 		opt->flag |= MB_F_LONG;
 		opt->flag &= ~MB_F_PE;
 		opt->min_len = 23;
-		opt->min_dp_max = 100;
+		opt->min_dp_max = 50;
 		opt->bw = 500, opt->bw_long = 20000;
 		opt->max_gap = 5000;
 		opt->pri_ratio = 0.8f;
