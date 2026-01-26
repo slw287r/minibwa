@@ -273,7 +273,7 @@ static void mb_matesw_core(void *km, const mb_opt_t *opt, const l2b_t *l2b, cons
 					ht.qs = len - ht.qe;
 					ht.qe = len - qt;
 				}
-				//fprintf(stderr, "X\t%s\t%ld\n", l2b->ctg[ht.tid].name, (long)ht.ts);
+				//fprintf(stderr, "X\t%s\tscore0=%d\tnewts=%ld\n", l2b->ctg[ht.tid].name, h0->p->dp_max, (long)ht.ts);
 				if (h1->n == h1->m) kom_grow(mb_hit_t, h1->a, h1->n, h1->m);
 				h1->a[h1->n++] = ht;
 			}
