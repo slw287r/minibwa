@@ -208,21 +208,42 @@ void mb_sync_hits(void *km, int n_regs, mb_hit_t *regs)
  * Set primary and secondary hits *
  **********************************/
 
+static int update_sub(mb_hit_t *ri, mb_hit_t *rp, float mask_level, int mask_len, int sub_diff, int uncov_len)
+{
+	int si = ri->qs, ei = ri->qe, sj = rp->qs, ej = rp->qe, min, max, ol;
+	if (ej <= si || sj >= ei) return 0;
+	min = ej - sj < ei - si? ej - sj : ei - si;
+	max = ej - sj > ei - si? ej - sj : ei - si;
+	ol = ej <= si || sj >= ei? 0 : (ej < ei? ej : ei) - (sj > si? sj : si);
+	if ((double)ol / min - (double)uncov_len / max > mask_level && uncov_len <= mask_len) {
+		int cnt_sub = 0, sci = ri->score;
+		ri->parent = rp->parent;
+		rp->subsc = rp->subsc > sci? rp->subsc : sci;
+		if (rp->p && ri->p && (rp->tid != ri->tid || rp->ts != ri->ts || rp->te != ri->te || ol != min)) { // the last condition excludes identical hits after DP
+			sci = ri->p->dp_max;
+			rp->p->dp_max2 = rp->p->dp_max2 > sci? rp->p->dp_max2 : sci;
+			if (rp->p->dp_max - ri->p->dp_max <= sub_diff) cnt_sub = 1;
+		}
+		if (cnt_sub) ++rp->n_sub;
+		return 1;
+	} else return 0;
+}
+
 void mb_set_parent(void *km, float mask_level, int mask_len, int n, mb_hit_t *r, int sub_diff, int hard_mask_level)
 { // TODO: re-examine the logic for variable-length seeds
 	int i, j, k, *w;
 	uint64_t *cov;
 	if (n <= 0) return;
 	for (i = 0; i < n; ++i) r[i].id = i;
-	cov = (uint64_t*)kmalloc(km, n * sizeof(uint64_t));
-	w = (int*)kmalloc(km, n * sizeof(int));
+	cov = Kmalloc(km, uint64_t, n);
+	w = Kmalloc(km, int, n);
 	w[0] = 0, r[0].parent = 0;
 	for (i = 1, k = 1; i < n; ++i) {
 		mb_hit_t *ri = &r[i];
-		int si = ri->qs, ei = ri->qe, n_cov = 0, uncov_len = 0;
+		int si = ri->qs, ei = ri->qe, n_cov = 0, uncov_len = 0, max_ol, max_j, n_par = 0;
 		if (hard_mask_level) goto skip_uncov;
 		for (j = 0; j < k; ++j) {
-			mb_hit_t *rp = &r[w[j]];
+			const mb_hit_t *rp = &r[w[j]];
 			int sj = rp->qs, ej = rp->qe;
 			if (ej <= si || sj >= ei) continue;
 			if (sj < si) sj = si;
@@ -230,7 +251,7 @@ void mb_set_parent(void *km, float mask_level, int mask_len, int n, mb_hit_t *r,
 			cov[n_cov++] = (uint64_t)sj<<32 | ej;
 		}
 		if (n_cov == 0) {
-			goto set_parent_test;
+			goto add_primary;
 		} else {
 			int j, x = si;
 			radix_sort_mb64(cov, cov + n_cov);
@@ -241,28 +262,19 @@ void mb_set_parent(void *km, float mask_level, int mask_len, int n, mb_hit_t *r,
 			if (ei > x) uncov_len += ei - x;
 		}
 skip_uncov:
-		for (j = 0; j < k; ++j) {
-			mb_hit_t *rp = &r[w[j]];
-			int sj = rp->qs, ej = rp->qe, min, max, ol;
-			if (ej <= si || sj >= ei) continue;
-			min = ej - sj < ei - si? ej - sj : ei - si;
-			max = ej - sj > ei - si? ej - sj : ei - si;
-			ol = si < sj? (ei < sj? 0 : ei < ej? ei - sj : ej - sj) : (ej < si? 0 : ej < ei? ej - si : ei - si);
-			if ((float)ol / min - (float)uncov_len / max > mask_level && uncov_len <= mask_len) {
-				int cnt_sub = 0, sci = ri->score;
-				ri->parent = rp->parent;
-				rp->subsc = rp->subsc > sci? rp->subsc : sci;
-				if (rp->p && ri->p && (rp->tid != ri->tid || rp->ts != ri->ts || rp->te != ri->te || ol != min)) { // the last condition excludes identical hits after DP
-					sci = ri->p->dp_max;
-					rp->p->dp_max2 = rp->p->dp_max2 > sci? rp->p->dp_max2 : sci;
-					if (rp->p->dp_max - ri->p->dp_max <= sub_diff) cnt_sub = 1;
-				}
-				if (cnt_sub) ++rp->n_sub;
-				break;
-			}
+		for (j = 0, max_ol = 0, max_j = -1; j < k; ++j) { // find the parent with the maximum overlap
+			const mb_hit_t *rp = &r[w[j]];
+			int sj = rp->qs, ej = rp->qe;
+			int ol = ej <= si || sj >= ei? 0 : (ej < ei? ej : ei) - (sj > si? sj : si);
+			if (max_ol < ol) max_ol = ol, max_j = j;
 		}
-set_parent_test:
-		if (j == k) w[k++] = i, ri->parent = i, ri->n_sub = 0;
+		if (max_j >= 0) {
+			n_par += update_sub(ri, &r[w[max_j]], mask_level, mask_len, sub_diff, uncov_len);
+			for (j = 0; j < k && n_par == 0; ++j) // if no parent found on the longest overlap, try more
+				n_par += update_sub(ri, &r[w[j]], mask_level, mask_len, sub_diff, uncov_len);
+		}
+add_primary:
+		if (n_par == 0) w[k++] = i, ri->parent = i, ri->n_sub = 0;
 	}
 	kfree(km, cov);
 	kfree(km, w);
