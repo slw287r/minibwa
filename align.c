@@ -585,6 +585,14 @@ static void mb_align1(void *km, const mb_opt_t *opt, const mb_idx_t *mi, int qle
 	qe = a[as1+cnt1-1].qpos + 1 - mb_min_int32(a[as1+cnt1-1].len>>1, max_back);
 	assert(cnt1 > 0);
 
+	if (kom_dbg_flag & MB_DBG_AN_POS) {
+		for (i = 0; i < r->cnt; ++i) {
+			int32_t gap = 0;
+			if (i > 0) gap = (a[r->as+i].qpos - a[r->as+i-1].qpos) - (a[r->as+i].tpos - a[r->as+i-1].tpos);
+			fprintf(stderr, "AF\t%d\t%s\t%ld\t%d\t%d\t%ld\n", r->as, mi->l2b->ctg[tid].name, (long)a[r->as + i].tpos, a[r->as + i].qpos, gap, (long)a[r->as + i].len);
+		}
+	}
+
 	/* Look for the start and end of regions to perform DP. This sounds easy
 	 * but is in fact tricky. Excessively small regions lead to unnecessary
 	 * clippings and lose alignable sequences. Excessively large regions

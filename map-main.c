@@ -267,6 +267,7 @@ static ko_longopt_t long_options[] = {
 	{ "dbg-seed",     ko_no_argument,       603 },
 	{ "dbg-qname",    ko_no_argument,       604 },
 	{ "dbg-aln-pe",   ko_no_argument,       605 },
+	{ "dbg-an-pos",   ko_no_argument,       606 }, // anchor position
 	{ "version",      ko_no_argument,       901 },
 	{ 0, 0, 0 }
 };
@@ -366,6 +367,8 @@ int main_map(int argc, char *argv[])
 			kom_dbg_flag |= MB_DBG_QNAME;
 		} else if (c == 605) { // --dbg-aln-pe
 			kom_dbg_flag |= MB_DBG_ALN_PE;
+		} else if (c == 606) { // --dbg-an-pos
+			kom_dbg_flag |= MB_DBG_AN_POS;
 		} else if (c == 901) { // --version
 			puts(MB_VERSION);
 			exit(0);
