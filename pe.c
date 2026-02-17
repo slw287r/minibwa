@@ -230,7 +230,7 @@ static void mb_matesw_align(void *km, const mb_opt_t *opt, int32_t qlen, uint8_t
 
 	memset(h, 0, sizeof(*h));
 	if (max_sc >= 32767) return;
-	ksw_gen_ts_mat(5, mat, 1, b_mm, b_ts, b_ambi);
+	ksw_gen_nt4_mat(mat, 1, b_mm, b_ts, b_ambi);
 	sz = max_sc < 255 - b_mm? 1 : 2;
 	qp = ksw_ll_qinit(km, sz, qlen, qseq, 5, mat);
 	xtra = KSW_LL_SUBO | opt->min_len;
@@ -251,7 +251,7 @@ static void mb_matesw_align(void *km, const mb_opt_t *opt, int32_t qlen, uint8_t
 		int32_t te = rst.te + 1, qe = rst.qe + 1;
 		mb_seq_rev(qe, qseq);
 		mb_seq_rev(te, tseq);
-		ksw_gen_ts_mat(5, mat, opt->a, opt->b, opt->b_ts, opt->b_ambi);
+		ksw_gen_nt4_mat(mat, opt->a, opt->b, opt->b_ts, opt->b_ambi);
 		ksw_extz2_sse(km, qe, qseq, te, tseq, 5, mat, opt->q, opt->e, opt->bw, opt->zdrop, opt->end_bonus, KSW_EZ_EXTZ_ONLY|KSW_EZ_RIGHT|KSW_EZ_REV_CIGAR, ez);
 		mb_seq_rev(qe, qseq);
 		mb_seq_rev(te, tseq);

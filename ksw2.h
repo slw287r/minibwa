@@ -197,4 +197,23 @@ static inline int ksw_apply_zdrop(ksw_extz_t *ez, int is_rot, int32_t H, int a, 
 	}
 	return 0;
 }
+
+static inline void ksw_gen_nt4_mat(int8_t *mat, int8_t a, int8_t b, int8_t b_ts, int8_t b_ambi)
+{ // 0/1/2/3/4 for A/C/G/T/N
+	const int m = 5;
+	int i, j;
+	a = a < 0? -a : a;
+	b = b > 0? -b : b;
+	b_ambi = b_ambi > 0? -b_ambi : b_ambi;
+	for (i = 0; i < m - 1; ++i) {
+		for (j = 0; j < m - 1; ++j)
+			mat[i * m + j] = i == j? a : b;
+		mat[i * m + m - 1] = b_ambi;
+	}
+	for (j = 0; j < m; ++j)
+		mat[(m - 1) * m + j] = b_ambi;
+	if (b_ts == 0 || b_ts == b) return;
+	b_ts = b_ts > 0? -b_ts : b_ts;
+	mat[0 * m + 2] = mat[1 * m + 3] = mat[2 * m + 0] = mat[3 * m + 1] = b_ts;
+}
 #endif

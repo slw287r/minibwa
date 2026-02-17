@@ -81,7 +81,6 @@ void mb_fmt_paf_basic(kstring_t *s, const l2b_t *l2b, int64_t qlen, const mb_hit
 
 // defined in align.c
 mb_hit_t *mb_align_skeleton(void *km, const mb_opt_t *opt, const mb_idx_t *mi, int qlen, const uint8_t *seq, int *n_regs_, mb_hit_t *regs, mb_anchor_t *a);
-void ksw_gen_ts_mat(int m, int8_t *mat, int8_t a, int8_t b, int8_t b_ts, int8_t b_ambi);
 void mb_append_cigar(mb_hit_t *r, uint32_t n_cigar, const uint32_t *cigar);
 void mb_update_extra(mb_hit_t *r, const uint8_t *qseq, const uint8_t *tseq, const int8_t *mat, int8_t q, int8_t e, int is_eqx, int log_gap);
 

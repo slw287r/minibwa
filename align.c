@@ -8,29 +8,7 @@
 #include "kalloc.h"
 #include "ksw2.h"
 
-static void ksw_gen_simple_mat(int m, int8_t *mat, int8_t a, int8_t b, int8_t b_ambi)
-{
-	int i, j;
-	a = a < 0? -a : a;
-	b = b > 0? -b : b;
-	b_ambi = b_ambi > 0? -b_ambi : b_ambi;
-	for (i = 0; i < m - 1; ++i) {
-		for (j = 0; j < m - 1; ++j)
-			mat[i * m + j] = i == j? a : b;
-		mat[i * m + m - 1] = b_ambi;
-	}
-	for (j = 0; j < m; ++j)
-		mat[(m - 1) * m + j] = b_ambi;
-}
 
-void ksw_gen_ts_mat(int m, int8_t *mat, int8_t a, int8_t b, int8_t b_ts, int8_t b_ambi)
-{
-	assert(m == 5);
-	ksw_gen_simple_mat(m, mat, a, b, b_ambi);
-	if (b_ts == 0 || b_ts == b) return;
-	b_ts = b_ts > 0? -b_ts : b_ts;
-	mat[0 * m + 2] = mat[1 * m + 3] = mat[2 * m + 0] = mat[3 * m + 1] = b_ts;
-}
 
 static inline void update_max_zdrop(int32_t score, int i, int j, int32_t *max, int *max_i, int *max_j, int e, int *max_zdrop, int pos[2][2])
 {
@@ -567,7 +545,7 @@ static void mb_align1(void *km, const mb_opt_t *opt, const mb_idx_t *mi, int qle
 
 	r2->cnt = 0;
 	if (r->cnt == 0) return;
-	ksw_gen_ts_mat(5, mat, opt->a, opt->b, opt->b_ts, opt->b_ambi);
+	ksw_gen_nt4_mat(mat, opt->a, opt->b, opt->b_ts, opt->b_ambi);
 	bw = (int)(opt->bw * 1.5 + 1.);
 	bw_long = (int)(opt->bw_long * 1.5 + 1.);
 	if (bw_long < bw) bw_long = bw;
@@ -765,7 +743,7 @@ static int mb_align1_inv(void *km, const mb_opt_t *opt, const mb_idx_t *mi, int 
 	if (ql < opt->min_chain_score || ql > opt->max_gap) return 0;
 	if (tl < opt->min_chain_score || tl > opt->max_gap) return 0;
 
-	ksw_gen_ts_mat(5, mat, opt->a, opt->b, opt->b_ts, opt->b_ambi);
+	ksw_gen_nt4_mat(mat, opt->a, opt->b, opt->b_ts, opt->b_ambi);
 	tseq = (uint8_t*)kmalloc(km, tl);
 	l2b_getseq(mi->l2b, r1->tid, r1->te, r2->ts, tseq);
 	qseq = r1->rev? &qseq0[0][r2->qe] : &qseq0[1][qlen - r2->qs];
