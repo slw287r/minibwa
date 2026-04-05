@@ -36,6 +36,7 @@ void mb_write_cs_ds_core(void *km, kstring_t *s, const uint8_t *tseq, const uint
 {
 	int i, q_off, t_off, q_len = 0, t_len = 0, min_tmp_len = 31;
 	char *tmp;
+	km_sprintf_lite(km, s, "%cs:Z:", is_ds? 'd' : 'c');
 	for (i = 0; i < (int)r->p->n_cigar; ++i) {
 		int op = r->p->cigar[i]&0xf, len = r->p->cigar[i]>>4;
 		if (op == MB_CIGAR_MATCH || op == MB_CIGAR_EQ_MATCH || op == MB_CIGAR_X_MISMATCH) {

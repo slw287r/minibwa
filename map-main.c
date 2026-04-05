@@ -130,6 +130,17 @@ static void *worker_pipeline(void *shared, int step, void *in)
 					j = i;
 				}
 			}
+			if (s->n_pe > 0) { // trim trailing "/[12]" for paired-end reads
+				for (i = 0; i < s->n_frag; ++i) {
+					int32_t j0, j1, l0, l1;
+					if (s->seg_cnt[i] != 2) continue;
+					j0 = s->seg_off[i] + 0, l0 = strlen(s->seq[j0].name);
+					j1 = s->seg_off[i] + 1, l1 = strlen(s->seq[j1].name);
+					if (l0 < 3 || l0 != l1) continue;
+					if (s->seq[j0].name[l0 - 1] != s->seq[j1].name[l1 - 1] && s->seq[j0].name[l0 - 2] == '/')
+						s->seq[j0].name[l0 - 2] = s->seq[j1].name[l1 - 2] = 0; // truncate
+				}
+			}
 			// set sb_cnt[] and sb_off[]
 			for (i = 0, sb_len = sb_off = 0; i < s->n_frag; ++i) {
 				if (sb_len >= opt->sb_len || i - sb_off >= opt->sb_seq) {
@@ -182,9 +193,9 @@ static void *worker_pipeline(void *shared, int step, void *in)
 					for (j = 0; j < s->n_hit[i]; ++j) {
 						const mb_hit_t *h = &s->hit[i][j];
 						if (h->parent == h->id) { // primary
-							mb_fmt_paf_basic(&out, idx->l2b, t->l_seq, h, t->name);
+							mb_fmt_paf(km, &out, idx->l2b, t, h, opt->flag, seg_en - seg_st, i - seg_st);
 						} else if (n_sec < opt->out_n) { // secondary
-							mb_fmt_paf_basic(&out, idx->l2b, t->l_seq, h, t->name);
+							mb_fmt_paf(km, &out, idx->l2b, t, h, opt->flag, seg_en - seg_st, i - seg_st);
 							++n_sec;
 						}
 					}
