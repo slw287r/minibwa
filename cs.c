@@ -1,4 +1,5 @@
 #include <assert.h>
+#include <stdio.h>
 #include "mbpriv.h"
 #include "kalloc.h"
 #include "kommon.h"
@@ -62,7 +63,7 @@ void mb_write_cs_ds_core(void *km, kstring_t *s, const uint8_t *tseq, const uint
 						l_tmp = 0;
 					}
 					km_sprintf_lite(km, s, "*%c%c", "acgtn"[tseq[t_off + j]], "acgtn"[qseq[q_off + j]]);
-				} else tmp[l_tmp++] = "ACGTN"[qseq[q_off + j]];
+				}
 			}
 			if (l_tmp > 0)
 				km_sprintf_lite(km, s, ":%d", l_tmp);
