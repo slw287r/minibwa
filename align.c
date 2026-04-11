@@ -23,7 +23,7 @@ static inline void update_max_zdrop(int32_t score, int i, int j, int32_t *max, i
 	} else *max = score, *max_i = i, *max_j = j;
 }
 
-static int mm_test_zdrop(void *km, const mb_opt_t *opt, const uint8_t *qseq, const uint8_t *tseq, uint32_t n_cigar, uint32_t *cigar, const int8_t *mat)
+static int mm_test_zdrop(void *km, const mb_opt_t *opt, const uint8_t *qseq, const uint8_t *tseq, uint32_t n_cigar, uint32_t *cigar, const int8_t *mat, int32_t is_sr)
 {
 	uint32_t k;
 	int32_t score = 0, max = INT32_MIN, max_i = -1, max_j = -1, i = 0, j = 0, max_zdrop = 0;
@@ -48,7 +48,7 @@ static int mm_test_zdrop(void *km, const mb_opt_t *opt, const uint8_t *qseq, con
 
 	// test if there is an inversion in the most dropped region
 	q_len = pos[1][1] - pos[1][0], t_len = pos[0][1] - pos[0][0];
-	if ((opt->flag&MB_F_LONG) && max_zdrop > opt->zdrop_inv && q_len < opt->max_gap && t_len < opt->max_gap) {
+	if (!is_sr && max_zdrop > opt->zdrop_inv && q_len < opt->max_gap && t_len < opt->max_gap) {
 		uint8_t *qseq2;
 		void *qp;
 		int q_off, t_off;
@@ -545,9 +545,7 @@ static void mb_max_stretch(const mb_hit_t *r, const mb_anchor_t *a, int32_t *as,
 
 static void mb_align1(void *km, const mb_opt_t *opt, const mb_idx_t *mi, int qlen, uint8_t *qseq0[2], mb_hit_t *r, mb_hit_t *r2, int n_a, mb_anchor_t *a, ksw_extz_t *ez)
 {
-	int32_t is_sr = !(opt->flag & MB_F_LONG);
-	int32_t max_back = is_sr? 0 : 10; // for long reads, allow up to 10bp "edges" from chain ends
-	int32_t rev = a[r->as].sid&1, as1, cnt1;
+	int32_t is_sr, max_back, rev = a[r->as].sid&1, as1, cnt1;
 	uint8_t *tseq = 0, *qseq;
 	int32_t i, bw, bw_long, dropped = 0, ksw_flag = 0;
 	int64_t tid = a[r->as].sid >> 1, l;
@@ -555,6 +553,8 @@ static void mb_align1(void *km, const mb_opt_t *opt, const mb_idx_t *mi, int qle
 	int32_t qs0, qe0, qs1, qe1, qs, qe;
 	int8_t mat[25];
 
+	is_sr = mb_is_sr_mode(opt, qlen);
+	max_back = is_sr? 0 : 10; // for long reads, allow up to 10bp "edges" from chain ends
 	r2->cnt = 0;
 	if (r->cnt == 0) return;
 	ksw_gen_nt4_mat(mat, opt->a, opt->b, opt->b_ts, opt->b_ambi);
@@ -562,7 +562,7 @@ static void mb_align1(void *km, const mb_opt_t *opt, const mb_idx_t *mi, int qle
 	bw_long = (int)(opt->bw_long * 1.5 + 1.);
 	if (bw_long < bw) bw_long = bw;
 
-	if (is_sr && qlen < 300) {
+	if (is_sr) {
 		mb_max_stretch(r, a, &as1, &cnt1);
 	} else {
 		mm_fix_bad_ends(r, a, opt->bw, opt->min_chain_score * 2, &as1, &cnt1);
@@ -577,8 +577,7 @@ static void mb_align1(void *km, const mb_opt_t *opt, const mb_idx_t *mi, int qle
 
 	if (kom_dbg_flag & MB_DBG_AN_POS) {
 		for (i = 0; i < r->cnt; ++i) {
-			int32_t gap = 0;
-			if (i > 0) gap = (a[r->as+i].qpos - a[r->as+i-1].qpos) - (a[r->as+i].tpos - a[r->as+i-1].tpos);
+			int32_t gap = i == 0? 0 : (a[r->as+i].qpos - a[r->as+i-1].qpos) - (a[r->as+i].tpos - a[r->as+i-1].tpos);
 			fprintf(stderr, "AF\t%d\t%s\t%ld\t%d\t%d\t%ld\n", r->as, mi->l2b->ctg[tid].name, (long)a[r->as + i].tpos, a[r->as + i].qpos, gap, (long)a[r->as + i].len);
 		}
 	}
@@ -685,7 +684,7 @@ static void mb_align1(void *km, const mb_opt_t *opt, const mb_idx_t *mi, int qle
 			l2b_getseq(mi->l2b, tid, ts, te, tseq);
 			mb_align_pair(km, opt, qe - qs, qseq, te - ts, tseq, mat, bw1, -1, opt->zdrop, ksw_flag|KSW_EZ_APPROX_MAX, ez); // first pass: with approximate Z-drop
 			// test Z-drop and inversion Z-drop
-			if ((zdrop_code = mm_test_zdrop(km, opt, qseq, tseq, ez->n_cigar, ez->cigar, mat)) != 0)
+			if ((zdrop_code = mm_test_zdrop(km, opt, qseq, tseq, ez->n_cigar, ez->cigar, mat, is_sr)) != 0)
 				mb_align_pair(km, opt, qe - qs, qseq, te - ts, tseq, mat, bw1, -1, zdrop_code == 2? opt->zdrop_inv : opt->zdrop, ksw_flag, ez); // second pass: lift approximate
 			if (kom_dbg_flag & MB_DBG_AN_POS) fprintf(stderr, "AD\t%d\t%ld\t%ld\t%d\t%d\t%d\t%d\n", r->as, (long)ts, (long)te, qs, qe, zdrop_code, ez->zdropped);
 			// update CIGAR
@@ -801,7 +800,7 @@ static int mb_align1_inv(void *km, const mb_opt_t *opt, const mb_idx_t *mi, int 
 	}
 	r_inv->ts = r1->te + t_off;
 	r_inv->te = r_inv->ts + ez->max_t + 1;
-	mb_update_extra(km, r_inv, &qseq[q_off], &tseq[t_off], mat, opt->q, opt->e, opt->flag, !!(opt->flag & MB_F_LONG));
+	mb_update_extra(km, r_inv, &qseq[q_off], &tseq[t_off], mat, opt->q, opt->e, opt->flag, mb_is_sr_mode(opt, qlen));
 	ret = 1;
 end_align1_inv:
 	kfree(km, tseq);

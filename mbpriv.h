@@ -127,10 +127,12 @@ static inline uint32_t mb_hash_str(const char *s)
 
 static inline void mb_seq_rev(uint32_t len, uint8_t *seq)
 {
-	uint32_t i;
-	uint8_t t;
-	for (i = 0; i < len>>1; ++i)
-		t = seq[i], seq[i] = seq[len - 1 - i], seq[len - 1 - i] = t;
+	kom_reverse(uint8_t, len, seq);
+}
+
+static inline int32_t mb_is_sr_mode(const mb_opt_t *opt, int32_t qlen)
+{
+	return (opt->flag & MB_F_LONG) || ((opt->flag & MB_F_ADAP) && qlen > opt->max_sr_len)? 0 : 1;
 }
 
 #ifdef __cplusplus

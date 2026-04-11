@@ -5,6 +5,7 @@
 static void mb_opt_reset(mb_opt_t *opt)
 {
 	memset(opt, 0, sizeof(mb_opt_t));
+	opt->max_sr_len = 325;
 	// seeding options
 	opt->max_sub_occ = 10;
 	opt->max_occ = 250;

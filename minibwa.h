@@ -42,6 +42,7 @@ typedef struct {
 	// general algorithm options
 	int32_t bw, bw_long; // bandwidth
 	int32_t max_gap; // break a chain if there are no seeds in a max_gap window
+	int32_t max_sr_len; // in the adaptive sr mode, treat reads longer than this as long reads
 	// chaining options
 	int32_t max_chain_skip;
 	int32_t max_chain_iter;

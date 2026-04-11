@@ -552,7 +552,7 @@ mb_hit_t *mb_map_sai(const mb_opt_t *opt, const mb_idx_t *idx, int64_t qlen, con
 		mb_set_sam_pri(n_hit, hit);
 	}
 	for (i = 0; i < n_hit; ++i) hit[i].frac_high = (int32_t)(255. * hi_cov / qlen);
-	mb_set_mapq(b->km, n_hit, hit, opt->min_chain_score, opt->a, !(opt->flag & MB_F_LONG));
+	mb_set_mapq(b->km, n_hit, hit, opt->min_chain_score, opt->a, mb_is_sr_mode(opt, qlen));
 
 	// clean up
 	kfree(b->km, a);
