@@ -296,13 +296,13 @@ static int usage(FILE *fp, const mb_opt_t *opt)
 	fprintf(fp, "    -t INT           number of worker threads [%d]\n", opt->n_thread);
 	fprintf(fp, "    -R STR           SAM read group line in a format like '@RG\\tID:foo\\tSM:bar' []\n");
 	fprintf(fp, "    -x STR           preset (sr for short/long reads; lr for long reads) [sr]\n");
+	fprintf(fp, "    -l NUM           treat reads <NUM as short reads in the sr mode [%d]\n", opt->max_sr_len);
 	fprintf(fp, "  Mapping:\n");
 	fprintf(fp, "    -k INT           min seed length [%d]\n", opt->min_len);
 	fprintf(fp, "    -c NUM           max seed occurrences [%d]\n", opt->max_occ);
     fprintf(fp, "    -m INT           min chaining score [%d]\n", opt->min_chain_score);
 	fprintf(fp, "    -p FLOAT         min secondary-to-primary score ratio [%g]\n", opt->pri_ratio);
 	fprintf(fp, "    -N INT           retain at most INT secondary alignments [%d]\n", opt->best_n);
-	fprintf(fp, "    -l NUM           treat reads <NUM as short reads in the sr mode [%d]\n", opt->max_sr_len);
 	fprintf(fp, "    --chain-only     perform chaining only without base alignment\n");
 	fprintf(fp, "  Alignment:\n");
 	fprintf(fp, "    -A INT           matching score [%d]\n", opt->a);
