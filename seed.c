@@ -265,3 +265,18 @@ void mb_anchor(void *km, const mb_idx_t *idx, mb_sai_v *u, int32_t qlen, int32_t
 	}
 	mb_anchor_dedup(v);
 }
+
+void mb_anchor_sort(const l2b_t *l2b, int64_t n_a, mb_anchor_t *a)
+{
+	int64_t i;
+	if (n_a <= 1) return;
+	for (i = 0; i < n_a; ++i) {
+		const l2b_ctg_t *ctg = &l2b->ctg[a[i].sid>>1];
+		a[i].tpos += ctg->off * 2 + ctg->len * (a[i].sid&1);
+	}
+	radix_sort_mb_anchor(a, a + n_a);
+	for (i = 0; i < n_a; ++i) {
+		const l2b_ctg_t *ctg = &l2b->ctg[a[i].sid>>1];
+		a[i].tpos -= ctg->off * 2 + ctg->len * (a[i].sid&1);
+	}
+}
