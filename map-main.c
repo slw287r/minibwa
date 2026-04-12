@@ -291,14 +291,18 @@ static int usage(FILE *fp, const mb_opt_t *opt)
 {
 	fprintf(fp, "Usage: minibwa map [options] <in.idx> <in.fastq>\n");
 	fprintf(fp, "Options:\n");
-	fprintf(fp, "  Mapping:\n");
+	fprintf(fp, "  Common:\n");
+	fprintf(fp, "    -a               output SAM (PAF by default)\n");
+	fprintf(fp, "    -t INT           number of worker threads [%d]\n", opt->n_thread);
+	fprintf(fp, "    -R STR           SAM read group line in a format like '@RG\\tID:foo\\tSM:bar' []\n");
 	fprintf(fp, "    -x STR           preset (sr for short/long reads; lr for long reads) [sr]\n");
-	fprintf(fp, "    -l NUM           treat reads <NUM as short reads in the sr mode [%d]\n", opt->max_sr_len);
+	fprintf(fp, "  Mapping:\n");
 	fprintf(fp, "    -k INT           min seed length [%d]\n", opt->min_len);
 	fprintf(fp, "    -c NUM           max seed occurrences [%d]\n", opt->max_occ);
     fprintf(fp, "    -m INT           min chaining score [%d]\n", opt->min_chain_score);
 	fprintf(fp, "    -p FLOAT         min secondary-to-primary score ratio [%g]\n", opt->pri_ratio);
 	fprintf(fp, "    -N INT           retain at most INT secondary alignments [%d]\n", opt->best_n);
+	fprintf(fp, "    -l NUM           treat reads <NUM as short reads in the sr mode [%d]\n", opt->max_sr_len);
 	fprintf(fp, "    --chain-only     perform chaining only without base alignment\n");
 	fprintf(fp, "  Alignment:\n");
 	fprintf(fp, "    -A INT           matching score [%d]\n", opt->a);
@@ -309,16 +313,13 @@ static int usage(FILE *fp, const mb_opt_t *opt)
 	fprintf(fp, "    -P               skip pairing and mate resuce\n");
 	fprintf(fp, "    --rescue=INT     mate rescue for up to INT candidates; 0 to skip rescue [%d]\n", opt->max_rescue);
 	fprintf(fp, "  Input/Output:\n");
-	fprintf(fp, "    -a               output SAM (PAF by default)\n");
-	fprintf(fp, "    -t INT           number of worker threads [%d]\n", opt->n_thread);
 	fprintf(fp, "    -o FILE          output file name [stdout]\n");
-	fprintf(fp, "    -R STR           SAM read group line in a format like '@RG\\tID:foo\\tSM:bar' []\n");
 	fprintf(fp, "    -U               don't output unmapped reads\n");
 	fprintf(fp, "    --base-tag=STR   output base alignment tag: cs, ds or MD []\n");
 	fprintf(fp, "    --outn=INT       output up to INT secondary alignments [0]\n");
 	fprintf(fp, "    -y               copy FASTA/Q comments to output\n");
 	fprintf(fp, "    -Y               use soft clipping for supplementary alignments\n");
-	fprintf(fp, "    -K NUM           process NUM-bp query sequences in a batch [500m]\n");
+	fprintf(fp, "    -K NUM           process NUM-bp query sequences in a batch [50m]\n");
 	fprintf(fp, "    --version        print version number\n");
 	return fp == stdout? 0 : 1;
 }
