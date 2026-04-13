@@ -3,7 +3,7 @@
 
 #include <stdint.h>
 
-#define MB_VERSION "0.0-r234-dirty"
+#define MB_VERSION "0.0-r239-dirty"
 
 #define MB_F_SAM              (0x1LL)       // output in the SAM format
 #define MB_F_NO_UNMAP         (0x2LL)       // output unmapped query sequences
@@ -77,6 +77,7 @@ typedef struct {
 	int32_t seed;
 	int64_t mb_size;  // mini-batch size
 	int64_t max_sw_mat;
+	int64_t cap_kalloc;
 } mb_opt_t;
 
 struct mb_idx_s;
@@ -125,6 +126,7 @@ void mb_opt_adap(const mb_opt_t *opt0, int32_t len, mb_opt_t *opt);
 
 mb_tbuf_t *mb_tbuf_init(int no_kalloc);
 void mb_tbuf_destroy(mb_tbuf_t *b);
+int32_t mb_tbuf_reset(mb_tbuf_t *b, int64_t max_block_size);
 
 mb_hit_t *mb_map(const mb_opt_t *opt, const mb_idx_t *idx, int64_t qlen, const char *seq0, int32_t *n_hit_, mb_tbuf_t *b, const char *qname);
 

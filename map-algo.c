@@ -75,6 +75,21 @@ void mb_tbuf_destroy(mb_tbuf_t *b)
 	free(b);
 }
 
+int32_t mb_tbuf_reset(mb_tbuf_t *b, int64_t max_blk_sz)
+{
+	km_stat_t kmst;
+	int64_t max_sz = max_blk_sz < 1U<<28? max_blk_sz : 1U<<28;
+	if (b->km == 0) return 0;
+	km_stat(b->km, &kmst);
+	assert(kmst.n_blocks == kmst.n_cores);
+	if (kmst.largest > max_sz || kmst.capacity > max_sz * 2) {
+		km_destroy(b->km);
+		b->km = km_init();
+		return 1;
+	}
+	return 0;
+}
+
 /************************
  * Basic hit operations *
  ************************/

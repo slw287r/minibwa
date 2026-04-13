@@ -76,6 +76,7 @@ static void worker_for_se_batch(void *data, long i, int tid)
 	kfree(km, sai);
 	kfree(km, seq);
 	kfree(km, len);
+	mb_tbuf_reset(b, opt->cap_kalloc);
 }
 
 static void worker_for_pe(void *data, long i, int tid)
