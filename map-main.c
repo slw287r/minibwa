@@ -435,6 +435,8 @@ int main_map(int argc, char *argv[])
 
 	idx = mb_idx_load(argv[o.ind]);
 	kom_assert(idx, "failed to load the index.");
+	if (kom_verbose >= 3)
+		fprintf(stderr, "[M::%s::%.3f*%.2f] index loaded\n", __func__, kom_realtime(), kom_percent_cpu());
 
 	if (mo.flag & MB_F_SAM) {
 		int ret;
