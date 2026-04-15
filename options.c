@@ -69,7 +69,7 @@ int mb_opt_preset(mb_opt_t *opt, const char *preset)
 		opt->min_dp_max = 50;
 		opt->bw = 500;
 		opt->max_gap = 5000;
-		opt->pri_ratio = 0.8f;
+		opt->pri_ratio = 0.75f;
 		opt->best_n = 5;
 		opt->end_bonus = -1;
 		opt->min_chain_score = 40;
@@ -103,6 +103,6 @@ void mb_opt_adap(const mb_opt_t *opt0, int32_t len, mb_opt_t *opt)
 		opt->min_dp_max = (int32_t)(50 - (50 - opt0->min_dp_max) * b + .499);
 	if (opt0->min_chain_score < 40)
 		opt->min_chain_score = (int32_t)(40 - (40 - opt0->min_chain_score) * b + .499);
-	if (opt0->pri_ratio < 0.8)
-		opt->pri_ratio = 0.8 - (0.8 - opt0->pri_ratio) * b;
+	if (opt0->pri_ratio < 0.75)
+		opt->pri_ratio = 0.75 - (0.75 - opt0->pri_ratio) * b;
 }
