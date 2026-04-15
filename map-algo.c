@@ -584,7 +584,7 @@ mb_hit_t *mb_map_sai(const mb_opt_t *opt, const mb_idx_t *idx, int64_t qlen, con
 
 	// heuristic to adjust chain_pri_ratio
 	chain_pri_ratio = opt->pri_ratio;
-	if (!is_sr && opt->pri_ratio > 0.0) {
+	if (!is_sr && opt->pri_ratio > 0.0 && n_hit > 1) {
 		int32_t best;
 		double r;
 		for (i = 1, best = 0; i < n_hit; ++i)
