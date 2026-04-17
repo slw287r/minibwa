@@ -277,6 +277,7 @@ static ko_longopt_t long_options[] = {
 	{ "rescue",       ko_required_argument, 304 },
 	{ "eqx",          ko_no_argument,       305 },
 	{ "pe",           ko_required_argument, 306 },
+	{ "long",         ko_optional_argument, 307 },
 	{ "adap",         ko_required_argument, 308 },
 	{ "chain-only",   ko_no_argument,       309 },
 	{ "dbg-aln-seq",  ko_no_argument,       601 },
@@ -296,8 +297,7 @@ static int usage(FILE *fp, const mb_opt_t *opt)
 	fprintf(fp, "  Common:\n");
 	fprintf(fp, "    -a               output SAM (PAF by default)\n");
 	fprintf(fp, "    -t INT           number of worker threads [%d]\n", opt->n_thread);
-	fprintf(fp, "    -x STR           preset (sr, lr or adap for mixed short/long reads) [adap]\n");
-	fprintf(fp, "    -l NUM           treat reads <NUM as short reads in the adap mode [%d]\n", opt->max_sr_len);
+	fprintf(fp, "    -l NUM           treat reads <NUM as short reads in the default adaptive mode [%d]\n", opt->max_sr_len);
 	fprintf(fp, "    -R STR           SAM read group line in a format like '@RG\\tID:foo\\tSM:bar' []\n");
 	fprintf(fp, "    -b STR           output a base alignment tag: cs, ds or MD []\n");
 	fprintf(fp, "    -5               take the alignment with the smallest query position as primary\n");
@@ -311,17 +311,19 @@ static int usage(FILE *fp, const mb_opt_t *opt)
 	fprintf(fp, "    -p FLOAT         min secondary-to-primary score ratio [%g]\n", opt->pri_ratio);
 	fprintf(fp, "    -N INT           retain at most INT secondary alignments [%d]\n", opt->best_n);
 	fprintf(fp, "    --chain-only     perform chaining only without base alignment\n");
+	fprintf(fp, "    -x STR           preset (sr, lr or adap for mixed short/long reads) [adap]\n");
 	fprintf(fp, "  Alignment:\n");
 	fprintf(fp, "    -A INT           matching score [%d]\n", opt->a);
 	fprintf(fp, "    -B INT           mismatching openalty [%d]\n", opt->b);
 	fprintf(fp, "    -O INT[,INT]     gap open penalty [%d,%d]\n", opt->q, opt->q2);
 	fprintf(fp, "    -E INT[,INT]     gap extension penalty [%d,%d]\n", opt->e, opt->e2);
+	fprintf(fp, "    -s INT           suppress alignment with DP score lower than INT*{-A} [%d]\n", opt->min_dp_max);
 	fprintf(fp, "  Paired-end:\n");
 	fprintf(fp, "    -P               skip pairing and mate resuce\n");
 	fprintf(fp, "    --rescue=INT     mate rescue for up to INT candidates; 0 to skip rescue [%d]\n", opt->max_rescue);
 	fprintf(fp, "  Input/Output:\n");
 	fprintf(fp, "    -o FILE          output file name [stdout]\n");
-	fprintf(fp, "    -U               don't output unmapped reads\n");
+	fprintf(fp, "    -u               don't output unmapped reads\n");
 	fprintf(fp, "    --outn=INT       output up to INT secondary alignments [0]\n");
 	fprintf(fp, "    -y               copy FASTA/Q comments to output\n");
 	fprintf(fp, "    -Y               use soft clipping for supplementary alignments\n");
@@ -345,7 +347,7 @@ static inline void yes_or_no(mb_opt_t *opt, uint64_t flag, int long_idx, const c
 
 int main_map(int argc, char *argv[])
 {
-	const char *opt_str = "x:o:k:c:m:p:A:B:b:O:E:t:K:N:PyYR:aUl:r:w:W:g:b:5";
+	const char *opt_str = "x:o:k:c:m:p:A:B:b:O:E:t:K:N:PyYR:aul:w:W:g:5s:";
 	int32_t c;
 	mb_idx_t *idx;
 	mb_opt_t mo;
@@ -381,11 +383,12 @@ int main_map(int argc, char *argv[])
 		else if (c == 'w') mo.bw = kom_parse_num(o.arg, 0);
 		else if (c == 'W') mo.bw_long = kom_parse_num(o.arg, 0);
 		else if (c == 'a') mo.flag |= MB_F_SAM;
-		else if (c == 'U') mo.flag |= MB_F_NO_UNMAP;
+		else if (c == 'u') mo.flag |= MB_F_NO_UNMAP;
 		else if (c == 'y') mo.flag |= MB_F_COPY_COMMENT;
 		else if (c == 'Y') mo.flag |= MB_F_SUPP_SOFT;
 		else if (c == '5') mo.flag |= MB_F_PRIMARY5;
 		else if (c == 'P') mo.flag |= MB_F_NO_PAIRING;
+		else if (c == 's') mo.min_dp_max = atoi(o.arg);
 		else if (c == 'o') fn_out = o.arg;
 		else if (c == 't') mo.n_thread = atoi(o.arg);
 		else if (c == 'K') mo.mb_size = kom_parse_num(o.arg, 0);
@@ -402,6 +405,9 @@ int main_map(int argc, char *argv[])
 			mo.flag |= MB_F_EQX;
 		} else if (c == 306) { // --pe
 			yes_or_no(&mo, MB_F_PE, o.longidx, o.arg, 1);
+		} else if (c == 307) { // --long
+			if (o.arg == 0) mo.flag |= MB_F_LONG;
+			else yes_or_no(&mo, MB_F_LONG, o.longidx, o.arg, 1);
 		} else if (c == 308) { // --adap
 			yes_or_no(&mo, MB_F_ADAP, o.longidx, o.arg, 1);
 		} else if (c == 309) { // --chain-only
