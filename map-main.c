@@ -271,7 +271,7 @@ int32_t mb_map_file(const mb_opt_t *opt, const mb_idx_t *idx, int32_t n, const c
  *******/
 
 static ko_longopt_t long_options[] = {
-	{ "no-kalloc",    ko_no_argument,       301 },
+	{ "kalloc",       ko_no_argument,       301 },
 	{ "outn",         ko_required_argument, 302 },
 	{ "pe-predef",    ko_optional_argument, 303 },
 	{ "rescue",       ko_required_argument, 304 },
@@ -393,8 +393,8 @@ int main_map(int argc, char *argv[])
 		else if (c == 't') mo.n_thread = atoi(o.arg);
 		else if (c == 'K') mo.mb_size = kom_parse_num(o.arg, 0);
 		else if (c == 'R') rg_line = o.arg;
-		else if (c == 301) { // --no-kalloc
-			mo.flag |= MB_F_NO_KALLOC;
+		else if (c == 301) { // --kalloc
+			yes_or_no(&mo, MB_F_NO_KALLOC, o.longidx, o.arg, 0);
 		} else if (c == 302) { // --outn
 			mo.out_n = atoi(o.arg);
 		} else if (c == 303) { // --pe-predef

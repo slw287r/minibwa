@@ -2,7 +2,7 @@ CC=			gcc
 CXX=		g++
 CFLAGS=		-std=c99 -g -Wall -O3
 CXXFLAGS=	$(CFLAGS)
-CPPFLAGS=	-DHAVE_KALLOC
+CPPFLAGS=
 INCLUDES=
 LOBJS=		kommon.o kalloc.o bwt.o l2bit.o options.o seed.o map-algo.o lchain.o align.o pe.o cs.o format.o \
 			ksw2_extz2_sse.o ksw2_extd2_sse.o ksw2_ll_sse.o
@@ -22,6 +22,10 @@ ifneq ($(omp),0)
 	LIBS+=-fopenmp
 endif
 
+ifeq ($(mimalloc),)
+	CPPFLAGS+=-DHAVE_KALLOC
+endif
+
 ifeq ($(ARCH), x86_64)
 	CFLAGS+=-msse4.2 -mpopcnt
 endif
@@ -38,7 +42,7 @@ libminibwa.a:$(LOBJS)
 		$(AR) -csru $@ $(LOBJS)
 
 minibwa:libminibwa.a $(AOBJS) main.o
-		$(CC) $(CFLAGS) $(AOBJS) main.o -o $@ -L. -lminibwa $(LIBS)
+		$(CC) $(CFLAGS) $(mimalloc) $(AOBJS) main.o -o $@ -L. -lminibwa $(LIBS)
 
 clean:
 		rm -fr *.o a.out $(PROG) *~ *.a *.dSYM

@@ -38,6 +38,9 @@ static void mb_opt_reset(mb_opt_t *opt)
 	opt->seed = 11;
 	opt->max_sw_mat = 100000000;
 	opt->cap_kalloc = 1UL<<28;
+#ifndef HAVE_KALLOC
+	opt->flag |= MB_F_NO_KALLOC;
+#endif
 }
 
 void mb_opt_init(mb_opt_t *opt)
