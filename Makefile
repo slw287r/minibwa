@@ -6,7 +6,8 @@ CPPFLAGS=
 INCLUDES=
 LOBJS=		kommon.o kalloc.o bwt.o l2bit.o options.o seed.o map-algo.o lchain.o align.o pe.o cs.o format.o \
 			ksw2_extz2_sse.o ksw2_extd2_sse.o ksw2_ll_sse.o
-AOBJS=		kthread.o QSufSort.o bwtgen.o libsais.o libsais64.o index.o bseq.o map-main.o fastmap.o
+AOBJS=		kthread.o libsais.o libsais64.o index.o bseq.o map-main.o fastmap.o
+MALLOC_O=	mimalloc.o
 PROG=		minibwa
 LIBS=		-lpthread -lz -lm
 ARCH=		$(shell uname -m)
@@ -20,6 +21,16 @@ ifneq ($(omp),0)
 	CPPFLAGS+=-DLIBSAIS_OPENMP
 	CFLAGS+=-fopenmp
 	LIBS+=-fopenmp
+endif
+
+ifneq ($(gpl),0)
+	AOBJS+=QSufSort.o bwtgen.o
+	CPPFLAGS+=-DUSE_GPL
+endif
+
+ifeq ($(mimalloc),0)
+	MALLOC_O=
+	CPPFLAGS+=-DHAVE_KALLOC
 endif
 
 ifeq ($(ARCH), x86_64)
@@ -40,8 +51,8 @@ mimalloc.o:
 libminibwa.a:$(LOBJS)
 		$(AR) -csru $@ $(LOBJS)
 
-minibwa:libminibwa.a $(AOBJS) mimalloc.o main.o
-		$(CC) $(CFLAGS) mimalloc.o $(AOBJS) main.o -o $@ -L. -lminibwa $(LIBS)
+minibwa:libminibwa.a $(MALLOC_O) $(AOBJS) main.o
+		$(CC) $(CFLAGS) $(MALLOC_O) $(AOBJS) main.o -o $@ -L. -lminibwa $(LIBS)
 
 clean:
 		rm -fr *.o a.out $(PROG) *~ *.a *.dSYM

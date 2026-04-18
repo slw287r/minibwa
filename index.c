@@ -84,6 +84,7 @@ int main_fa2bit(int argc, char *argv[])
 
 int main_genraw(int argc, char *argv[])
 {
+#ifdef USE_GPL
 	ketopt_t o = KETOPT_INIT;
 	int c, block_size = 10000000;
 	while ((c = ketopt(&o, argc, argv, 1, "b:", 0)) >= 0) {
@@ -97,6 +98,10 @@ int main_genraw(int argc, char *argv[])
 	}
 	mb_bwtgen(argv[o.ind], argv[o.ind+1], block_size);
 	return 0;
+#else
+	if (kom_verbose >= 1) fprintf(stderr, "ERROR: genraw not compiled as it depends on GPL'd code\n");
+	return 1;
+#endif
 }
 
 int main_raw2bwt(int argc, char *argv[])
@@ -176,8 +181,8 @@ int main_index(int argc, char *argv[])
 	mb_bwt_t *bwt;
 
 	while ((c = ketopt(&o, argc, argv, 1, "ls:u:b:t:", 0)) >= 0) {
-		if (c == 'l') low_mem = 1;
-		else if (c == 't') n_thread = atoi(o.arg);
+		if (c == 't') n_thread = atoi(o.arg);
+		else if (c == 'l') low_mem = 1;
 		else if (c == 'b') block_size = kom_parse_num(o.arg, 0);
 		else if (c == 'u') sa_bit = atoi(o.arg);
 		else if (c == 's') seed = atol(o.arg);
@@ -186,8 +191,8 @@ int main_index(int argc, char *argv[])
 		fprintf(stderr, "Usage: minibwa index [options] <in.fasta> <out.prefix>\n");
 		fprintf(stderr, "Options:\n");
 		fprintf(stderr, "  -s INT    random seed for amibiguous bases [%ld]\n", (unsigned long)seed);
-		fprintf(stderr, "  -l        use the old low-memory algorithm for BWT construction\n");
 		fprintf(stderr, "  -u INT    SA sample rate at 1/(1<<INT) [%d]\n", sa_bit);
+		fprintf(stderr, "  -l        low-memory GPL'd algorithm for BWT construction\n");
 		fprintf(stderr, "  -b NUM    block size (effective with -l) [10m]\n");
 #ifdef LIBSAIS_OPENMP
 		fprintf(stderr, "  -t INT    number of threads (effective w/o -l) [%d]\n", n_thread);
@@ -203,15 +208,20 @@ int main_index(int argc, char *argv[])
 
 	l2b = l2b_import(argv[o.ind], seed);
 	kom_assert(l2b, "failed to read the genome FASTA.");
-	if (!low_mem) {
-		l2b_save(fn_l2b, l2b);
-		bwt = mb_bwt_libsais(l2b, sa_bit, 1, n_thread);
-	} else {
+	if (low_mem) {
+#ifdef USE_GPL
 		l2b_save_pac(fn_l2b, l2b, 1);
 		mb_bwtgen(fn_l2b, fn_bwt, block_size);
 		l2b_save(fn_l2b, l2b);
 		bwt = mb_bwt_load_raw(fn_bwt);
 		mb_bwt_gen_sa(bwt, sa_bit);
+#else
+		if (kom_verbose >= 1) fprintf(stderr, "ERROR: option -l not compiled as it depends on GPL'd code\n");
+		abort();
+#endif
+	} else {
+		l2b_save(fn_l2b, l2b);
+		bwt = mb_bwt_libsais(l2b, sa_bit, 1, n_thread);
 	}
 	mb_bwt_save(fn_bwt, bwt);
 	l2b_destroy(l2b);
