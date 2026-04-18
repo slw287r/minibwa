@@ -5,6 +5,10 @@ cd minibwa
 make        # Or "make omp=0" if the compiler doesn't support OpenMP
 ./minibwa index test/chrM-human.fa.gz chrM-human              # index the genome
 ./minibwa map -a chrM-human test/chrM-read_?.fa.gz > aln.sam  # align and output in SAM
+
+# other examples without test data
+minibwa map -a -5P ref.index reads.interleaved.fq > aln.sam   # align Hi-C short reads
+minibwa map -t16 ref.index long-read.fq > aln.paf             # align long reads
 ```
 
 ## Introduction
