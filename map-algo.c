@@ -460,7 +460,7 @@ static void mb_set_inv_mapq(void *km, int n_regs, mb_hit_t *regs)
 	kfree(km, aux);
 }
 
-void mb_set_mapq(void *km, int32_t qlen, int n_regs, mb_hit_t *regs, int min_chain_sc, int match_sc, int is_sr)
+void mb_set_mapq(void *km, int32_t qlen, int n_regs, mb_hit_t *regs, int min_chain_sc, int match_sc, int is_sr, int max_sr_len)
 {
 	const int32_t mapQ_coef_len = 50;
 	const double mapQ_coef_fac = 3.0; // should be log(mapQ_coef_len)), but bwa-mem uses 3.0 due to a bug. Let's match bwa-mem
@@ -472,20 +472,23 @@ void mb_set_mapq(void *km, int32_t qlen, int n_regs, mb_hit_t *regs, int min_cha
 		if (r->inv) {
 			r->mapq = 0;
 		} else if (r->parent == r->id) {
-			int mapq, subsc;
+			int mapq, mapq_sr, mapq_lr, subsc;
 			double pen_chn = r->score > qlen * 0.1? 1.0 : 10.0 * r->score / qlen; // penalize chains with few matching bases
 			subsc = r->subsc > min_chain_sc? r->subsc : min_chain_sc;
 			if (r->p && r->p->dp_max2 > 0 && r->p->dp_max > 0) {
 				double x, identity = (double)r->mlen / r->blen;
-				if (is_sr) { // BWA-MEM formula for short reads
-					x = r->blen < mapQ_coef_len? 1. : mapQ_coef_fac / log(r->blen);
-					x *= identity * identity;
-					mapq = (int)(6.02 * x * x * (r->p->dp_max - r->p->dp_max2) / match_sc + .499f);
-				} else { // long reads
-					x = (double)r->p->dp_max2 / r->p->dp_max;
-					mapq = (int)(pen_chn * identity * q_coef * (1.0 - x * x) * log((double)r->p->dp_max / match_sc));
-				}
-			} else {
+				// BWA-MEM formula for short reads
+				x = r->blen < mapQ_coef_len? 1. : mapQ_coef_fac / log(r->blen);
+				x *= identity * identity;
+				mapq_sr = (int)(6.02 * x * x * (r->p->dp_max - r->p->dp_max2) / match_sc + .499f);
+				// minimap2 formula for long reads
+				x = (double)r->p->dp_max2 / r->p->dp_max;
+				mapq_lr = (int)(pen_chn * identity * q_coef * (1.0 - x * x) * log((double)r->p->dp_max / match_sc));
+				// final mapq
+				if (is_sr) mapq = mapq_sr;
+				else if (max_sr_len < 0) mapq = mapq_lr;
+				else mapq = qlen < max_sr_len? mapq_sr : (int32_t)(mapq_lr - (mapq_lr - mapq_sr) * pow(2.0, 1.0 - (double)qlen / max_sr_len) + .499);
+			} else { // minimap2 formula
 				double x = (double)subsc / r->score0;
 				if (r->p) {
 					double identity = (double)r->mlen / r->blen;
@@ -601,7 +604,7 @@ mb_hit_t *mb_map_sai(const mb_opt_t *opt, const mb_idx_t *idx, int64_t qlen, con
 		mb_set_sam_pri(n_hit, hit, !!(opt->flag & MB_F_PRIMARY5));
 	}
 	for (i = 0; i < n_hit; ++i) hit[i].frac_high = (int32_t)(255. * hi_cov / qlen);
-	mb_set_mapq(b->km, qlen, n_hit, hit, opt->min_chain_score, opt->a, is_sr);
+	mb_set_mapq(b->km, qlen, n_hit, hit, opt->min_chain_score, opt->a, is_sr, opt->max_sr_len);
 
 	// clean up
 	kfree(b->km, a);

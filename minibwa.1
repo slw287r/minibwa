@@ -1,4 +1,4 @@
-.TH minibwa 1 "17 April 2026" "minibwa-0.0 (r252)" "Bioinformatics tools"
+.TH minibwa 1 "19 April 2026" "minibwa-0.0 (r259)" "Bioinformatics tools"
 .SH NAME
 .PP
 minibwa - short/long-read alignment against a reference genome
@@ -35,19 +35,18 @@ minibwa map
 
 .SH DESCRIPTION
 Minibwa aligns short reads against a reference genome. It is the successor of
-bwa-mem with a different algorithm. Minibwa is 3-4 times as fast as the
+bwa-mem with a different algorithm. Minibwa is over three times as fast as the
 original bwa-mem and twice as fast as bwa-mem2 at comparable accuracy. While
 minibwa works with accurate long reads, minimap2 is more robust under high
 error rate.
 
-Minibwa is named after bwa-mem and minimap2 and is based on the source code of
-both projects: it indexes the genome with Burrow-Wheeler Transform (BWT), finds
-variable-length seeds as nested SuperMaximal Exact Matches (SMEMs) like
-bwa-mem, and performs chaining and SIMD-based nucleotide alignment with the
-minimap2 algorithm. Minibwa speeds up bwa-mem2 further with effective prefetch
-for seeding, additional heuristics to skip unnecessary mate rescue and reduced
-effort in highly repetitive regions where reads would often be wrongly mapped
-anyway.
+Minibwa is a hybrid of bwa-mem and minimap2: it indexes the genome with
+Burrow-Wheeler Transform (BWT), finds variable-length seeds like bwa-mem, and
+performs chaining and SIMD-based nucleotide alignment with the minimap2
+algorithm. Minibwa speeds up bwa-mem2 further with additional prefetch for
+seeding, new heuristics to skip unnecessary mate rescue and reduced effort in
+highly repetitive regions where reads would often be wrongly mapped due to
+structural changes anyway.
 
 .SH THE INDEX COMMAND
 .SS Summary
@@ -179,9 +178,9 @@ Whether to enable the adaptive mode, which is the default behavior with the
 preset. In the adaptive mode, minibwa smoothly adjusts
 .BR -g / -w / -W / -N / -m / -s
 based on the individual read length, using formula
-.IR x1 -( x1 - x0 )*pow(2,-(max( l ,100)-100)/(2000-100)),
+.IR x1 -( x1 - x0 )*pow(2,-(max( L ,100)-100)/(2000-100)),
 where
-.I l
+.I L
 is the read length,
 .I x1
 is the value for long reads that are fixed, and
@@ -189,8 +188,8 @@ is the value for long reads that are fixed, and
 is the value for short reads that can be changed on the command line. For a
 read longer than
 .BR -l ,
-minibwa additionally enables anchor filtering and uses the long-read formula
-for calculating the mapping quality.
+minibwa additionally enables anchor filtering and mixes the short- and
+long-read formulae for calculating the mapping quality.
 .TP
 .BI -x \ STR
 Preset:
@@ -336,12 +335,4 @@ cs	Z	Difference string
 .SH LIMITATIONS
 .TP 2
 *
-Minibwa does not work with noisy long reads.
-.TP
-*
-In the default adaptive mode, minibwa does not
-.I smoothly
-transition between short- and long-read modes. In particular, minibwa uses the
-bwa-mem formula to calculate the mapping quality of short reads but uses the
-minimap2 formula for long reads. Minibwa also attempts to filter misplaced
-anchors for long reads but not for short reads.
+Minibwa does not work with noisy long reads or spliced alignment.

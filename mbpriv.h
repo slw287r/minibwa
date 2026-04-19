@@ -71,7 +71,7 @@ void mb_select_sub(void *km, float pri_ratio, int min_diff, int best_n, int *n_,
 void mb_filter_hits(const mb_opt_t *opt, int qlen, int *n_regs, mb_hit_t *regs);
 int mb_squeeze_a(void *km, int n_regs, mb_hit_t *regs, mb_anchor_t *a);
 void mb_split_hit(mb_hit_t *r, mb_hit_t *r2, int n, int qlen, mb_anchor_t *a, const l2b_t *l2b);
-void mb_set_mapq(void *km, int32_t qlen, int n_regs, mb_hit_t *regs, int min_chain_sc, int match_sc, int is_sr);
+void mb_set_mapq(void *km, int32_t qlen, int n_regs, mb_hit_t *regs, int min_chain_sc, int match_sc, int is_sr, int max_sr_len);
 
 mb_hit_t *mb_map_sai(const mb_opt_t *opt, const mb_idx_t *idx, int64_t qlen, const uint8_t *seq, mb_sai_v *u, int32_t *n_hit_, mb_tbuf_t *b, const char *qname);
 
