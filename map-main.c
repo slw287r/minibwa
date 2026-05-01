@@ -194,17 +194,22 @@ static void *worker_pipeline(void *shared, int step, void *in)
 			out.l = 0;
 			for (i = seg_st; i < seg_en; ++i) {
 				mb_bseq1_t *t = &s->seq[i];
+				int32_t mate_qlen = 0; // mate's l_seq for MC:Z; 0 suppresses MC/MQ
+				if (seg_en - seg_st > 1) {
+					int32_t mate_idx = i != seg_en - 1? i + 1 : seg_st; // wrap around if i is the last segment
+					mate_qlen = s->seq[mate_idx].l_seq;
+				}
 				tot_len += t->l_seq;
 				if (s->n_hit[i] > 0) { // the query has at least one hit
 					int32_t n_sec = 0;
 					for (j = 0; j < s->n_hit[i]; ++j) {
 						const mb_hit_t *h = &s->hit[i][j];
 						if (h->parent == h->id || n_sec < opt->out_n)
-							mb_format(km, &out, idx->l2b, t, seg_en - seg_st, &s->n_hit[seg_st], &s->hit[seg_st], j, opt->flag, i - seg_st);
+							mb_format(km, &out, idx->l2b, t, seg_en - seg_st, &s->n_hit[seg_st], &s->hit[seg_st], j, opt->flag, i - seg_st, mate_qlen);
 						n_sec += (h->parent != h->id);
 					}
 				} else if (!(opt->flag & MB_F_NO_UNMAP)) { // TODO: output unmapped reads
-					mb_format(km, &out, idx->l2b, t, seg_en - seg_st, &s->n_hit[seg_st], &s->hit[seg_st], -1, opt->flag, i - seg_st);
+					mb_format(km, &out, idx->l2b, t, seg_en - seg_st, &s->n_hit[seg_st], &s->hit[seg_st], -1, opt->flag, i - seg_st, mate_qlen);
 				}
 			}
 			fwrite(out.s, 1, out.l, s->p->fp_out);
