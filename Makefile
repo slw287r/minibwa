@@ -3,6 +3,7 @@ CXX=		g++
 CFLAGS=		-std=c99 -g -Wall -O3
 CXXFLAGS=	$(CFLAGS)
 CPPFLAGS=
+LDFLAGS=
 INCLUDES=
 LOBJS=		kommon.o kalloc.o bwt.o l2bit.o options.o seed.o map-algo.o lchain.o align.o pe.o cs.o format.o \
 			ksw2_extz2_sse.o ksw2_extd2_sse.o ksw2_ll_sse.o
@@ -15,7 +16,8 @@ omp=		$(shell printf '\043include <omp.h>\nint main(){return 0;}' | $(CC) -x c -
 
 ifneq ($(asan),)
 	CFLAGS+=-fsanitize=address
-	LIBS+=-fsanitize=address -ldl
+	LDFLAGS+=-fsanitize=address
+	LIBS+=-ldl
 endif
 
 ifeq ($(omp),1)
@@ -53,7 +55,7 @@ libminibwa.a:$(LOBJS)
 		$(AR) -csru $@ $(LOBJS)
 
 minibwa:libminibwa.a $(MALLOC_O) $(AOBJS) main.o
-		$(CC) $(CFLAGS) $(MALLOC_O) $(AOBJS) main.o -o $@ -L. -lminibwa $(LIBS)
+		$(CC) $(CFLAGS) $(LDFLAGS) $(MALLOC_O) $(AOBJS) main.o -o $@ -L. -lminibwa $(LIBS)
 
 clean:
 		rm -fr *.o a.out $(PROG) *~ *.a *.dSYM
