@@ -38,6 +38,33 @@ static const mb_hit_t *mb_select_unique_se(int32_t n_hit, const mb_hit_t *hit)
 	return n_pri == 1 && mapq >= 10? &hit[k] : 0;
 }
 
+static int32_t mb_hit_sum_score(void *km, int32_t n_hit, const mb_hit_t *hit)
+{
+	static const int32_t max_cnt_heap = 8;
+	int32_t i, k, n_pri, sc, qe;
+	uint64_t *a, aa[max_cnt_heap];
+	for (i = 0, n_pri = sc = 0; i < n_hit; ++i) // precalculate size
+		if (hit[i].id == hit[i].parent && hit[i].p)
+			++n_pri, sc = hit[i].p->dp_max; // NB: requiring base alignment
+	if (n_pri == 0) return 0;
+	if (n_pri == 1) return sc;
+	a = n_pri < max_cnt_heap? aa : Kmalloc(km, uint64_t, n_pri);
+	for (i = k = 0; i < n_hit; ++i)
+		if (hit[i].id == hit[i].parent && hit[i].p)
+			a[k++] = (uint64_t)hit[i].qs << 32 | i;
+	radix_sort_mb64(a, a + k);
+	for (i = 0, sc = qe = 0; i < k; ++i) {
+		const mb_hit_t *h = &hit[(uint32_t)a[i]];
+		if (h->qe <= qe) continue;
+		if (h->qs < qe)
+			sc += (int32_t)((double)(h->qe - qe) / (h->qe - h->qs) * h->p->dp_max + .499);
+		else sc += h->p->dp_max;
+		qe = h->qe;
+	}
+	if (a != aa) kfree(km, a);
+	return sc;
+}
+
 void mb_pestat(void *km, const mb_opt_t *opt, int32_t n_frag, const int32_t *seg_off, const int32_t *seg_cnt, const int32_t *n_hit, mb_hit_t *const *hit, mb_pestat_t pes[4])
 {
 	const int MIN_DIR_CNT = 20;
@@ -215,7 +242,7 @@ static int32_t mb_ungap(void *km, int32_t qlen, const uint8_t *qseq, int32_t tle
 	return max;
 }
 
-static void mb_matesw_align(void *km, const mb_opt_t *opt, int32_t qlen, uint8_t *qseq, int32_t tlen, uint8_t *tseq, mb_hit_t *h, ksw_extz_t *ez)
+static void mb_matesw_align(void *km, const mb_opt_t *opt, int32_t qlen, uint8_t *qseq, int32_t tlen, uint8_t *tseq, mb_hit_t *h, int32_t min_sc, ksw_extz_t *ez)
 {
 	int8_t mat[25];
 	int32_t max_sc = qlen < tlen? qlen : tlen;
@@ -247,7 +274,7 @@ static void mb_matesw_align(void *km, const mb_opt_t *opt, int32_t qlen, uint8_t
 		fputc('\n', stderr);
 	}
 	kfree(km, qp);
-	if (rst.score >= opt->min_dp_max) {
+	if (rst.score >= opt->min_dp_max && rst.score >= min_sc) { // min_sc is already divided by opt->a
 		int32_t te = rst.te + 1, qe = rst.qe + 1;
 		mb_seq_rev(qe, qseq);
 		mb_seq_rev(te, tseq);
@@ -284,7 +311,8 @@ typedef struct {
 	mb_hit_t *a;
 } mb_hit_v;
 
-static const mb_hit_t *mb_matesw_core(void *km, const mb_opt_t *opt, const l2b_t *l2b, const mb_pestat_t pes[4], const mb_hit_t *h0, int32_t r0, int32_t len, uint8_t *seq[2], mb_hit_v *h1, ksw_extz_t *ez)
+static const mb_hit_t *mb_matesw_core(void *km, const mb_opt_t *opt, const l2b_t *l2b, const mb_pestat_t pes[4], const mb_hit_t *h0, int32_t r0,
+	int32_t len, uint8_t *seq[2], mb_hit_v *h1, int32_t min_sc, ksw_extz_t *ez)
 {
 	int32_t dir, skip[4];
 	int64_t pos5;
@@ -321,7 +349,7 @@ static const mb_hit_t *mb_matesw_core(void *km, const mb_opt_t *opt, const l2b_t
 				if (te2 > te) te2 = te;
 			}
 			if (max_ug >= 10 || max_ug >= n_kmer * 0.33)
-				mb_matesw_align(km, opt, len, seq[is_rev], te2 - ts2, &ref[ts2 - ts], &ht, ez);
+				mb_matesw_align(km, opt, len, seq[is_rev], te2 - ts2, &ref[ts2 - ts], &ht, min_sc, ez);
 			if (ht.p) { // a good hit found
 				ht.tid = h0->tid;
 				ht.ts += ts2, ht.te += ts2;
@@ -344,7 +372,7 @@ static const mb_hit_t *mb_matesw_core(void *km, const mb_opt_t *opt, const l2b_t
 
 static int32_t mb_matesw(void *km, const mb_opt_t *opt, const l2b_t *l2b, int32_t n_hit[2], mb_hit_t *hit[2], const mb_pestat_t pes[4], const mb_pairaux_t *paux0, int32_t qlen[2], char *const qseq[2])
 {
-	int32_t i, r, n_add, n_res, max[2], max2[2], skip[2];
+	int32_t i, r, n_add, n_res, max[2], max2[2], skip[2], min_sc[2];
 	mb_hit_v ha[2];
 	ksw_extz_t ez;
 	mb128_t *a;
@@ -390,6 +418,8 @@ static int32_t mb_matesw(void *km, const mb_opt_t *opt, const l2b_t *l2b, int32_
 			qs[r][1][qlen[r] - 1 - i] = c < 4? 3 - c : 4;
 		}
 	}
+	min_sc[0] = mb_hit_sum_score(km, n_hit[0], hit[0]) / opt->a - opt->pen_unpair;
+	min_sc[1] = mb_hit_sum_score(km, n_hit[1], hit[1]) / opt->a - opt->pen_unpair;
 
 	// do alignment
 	max[0] = paux0->score, max2[0] = paux0->sub_sc, skip[0] = 0;
@@ -401,7 +431,7 @@ static int32_t mb_matesw(void *km, const mb_opt_t *opt, const l2b_t *l2b, int32_
 		int32_t sc, r = a[i].y&1, j = a[i].y>>1;
 		const mb_hit_t *h0 = &ha[r].a[j], *h1;
 		if (skip[r]) continue;
-		h1 = mb_matesw_core(km, opt, l2b, pes, h0, r, qlen[!r], qs[!r], &ha[!r], &ez);
+		h1 = mb_matesw_core(km, opt, l2b, pes, h0, r, qlen[!r], qs[!r], &ha[!r], min_sc[!r], &ez);
 		if (h1) { // rescue successful
 			sc = mb_pair_score(h0, h1, pes, opt->a);
 			if (sc > max[r]) max2[r] = max[r], max[r] = sc;
