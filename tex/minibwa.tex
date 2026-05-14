@@ -197,47 +197,45 @@ Please see \citet{Li:2024ac} for the proof of this algorithm.
 \begin{algorithm}[tb]
 	\caption{Find $(\ell,c)$-SMEMs in string set $\mathcal{P}$}\label{algo:smem}
 	\begin{algorithmic}[1]
+		\Procedure{BackStep}{$Q,u,P,i,j,(k,k',s),\ell,c$}
+			\State $(l,l',t)\gets${\sc BackExt}$((k,k',s),P[j])$
+			\If{$t\ge c$}
+				\State $Q.{\rm push}(u,P,i,j-1,(l,l',t))$
+			\ElsIf{$j+\ell<|P|$}
+				\State $Q.{\rm push}(1,P,j+1,j+\ell,(0,0,|B|))$
+			\EndIf
+		\EndProcedure
 		\Procedure{FindSMEM}{$\mathcal{P},\ell,c$}
-			\ForAll{$P\in\mathcal{P}$}
-				\State $Q.{\rm push}(1,P,0,\cdot,\cdot)$\Comment{$Q$ is a queue}
+			\ForAll{$P\in\mathcal{P}$}\Comment{initialize queue $Q$}
+				\If{$\ell-1<|P|$}
+					\State $Q.{\rm push}(1,P,0,\ell-1,(0,0,|B|))$
+				\EndIf
 			\EndFor
 			\While{$Q$ is not empty}
 				\State $(u,P,i,j,(k,k',s))\gets Q.{\rm shift}()$\Comment{take out the head}
-				\If{$u=1$}\Comment{stage 1: prepare}
-					\State $Q.{\rm push}(2,P,i,i+\ell-1,(0,0,|B|))$
-				\ElsIf{$u=2$}\Comment{stage 2: backward extension}
-					\If{$j<i$}\Comment{move to stage 3}
-						\State $Q.{\rm push}(3,P,i,i+\ell,(k,k',s))$
+				\If{$u=1$}\Comment{stage 1: backward extension}
+					\If{$j<i$}\Comment{move to stage 2}
+						\State $Q.{\rm push}(2,P,i,i+\ell,(k,k',s))$
 					\Else
-						\State $(l,l',t)\gets${\sc BackExt}$((k,k',s),P[j])$
-						\If{$t\ge c$}\Comment{1-step backward ext.}
-							\State $Q.{\rm push}(2,P,i,j-1,(l,l',t))$
-						\Else\Comment{no SMEM possible; back to stage 1}
-							\State $Q.{\rm push}(1,P,j+1,\cdot,\cdot)$
-						\EndIf
+						\State {\sc BackStep}$(Q,u,P,i,j,(k,k',s),\ell,c)$
 					\EndIf
-				\ElsIf{$u=3$}\Comment{stage 3: forward extension}
+				\ElsIf{$u=2$}\Comment{stage 2: forward extension}
 					\If{$j=|P|$}\Comment{reach the end of $P$}
 						\State Output $(P,i,j,(k,k',s))$\Comment{report an SMEM}
 						\State {\bf continue}
 					\EndIf
 					\State $(l,l',t)\gets${\sc ForExt}$((k,k',s),P[j])$
 					\If{$t\ge c$}\Comment{1-step forward ext.}
-						\State $Q.{\rm push}(3,P,i,j+1,(l,l',t))$
-					\Else\Comment{move to stage 4}
+						\State $Q.{\rm push}(2,P,i,j+1,(l,l',t))$
+					\Else\Comment{move to stage 3}
 						\State Output $(P,i,j,(k,k',s))$\Comment{report an SMEM}
-						\State $Q.{\rm push}(4,P,i,j-1,(0,0,|B|))$
+						\State $Q.{\rm push}(3,P,i,j,(0,0,|B|))$
 					\EndIf
-				\ElsIf{$u=4$}\Comment{stage 4: backward ext. again}
+				\ElsIf{$u=3$}\Comment{stage 3: backward ext. again}
 					\If{$j\le i$}\Comment{back to stage 1}
-						\State $Q.{\rm push}(1,P,j+1,\cdot,\cdot)$
+						\State $Q.{\rm push}(1,P,j+1,j+\ell,(0,0,|B|))$
 					\Else
-						\State $(l,l',t)\gets${\sc BackExt}$((k,k',s),P[j])$
-						\If{$t\ge c$}\Comment{1-step backward ext.}
-							\State $Q.{\rm push}(4,P,i,j-1,(l,l',t))$
-						\Else\Comment{back to stage 1}
-							\State $Q.{\rm push}(1,P,j+1,\cdot,\cdot)$
-						\EndIf
+						\State {\sc BackStep}$(Q,u,P,i,j,(k,k',s),\ell,c)$
 					\EndIf
 				\EndIf
 			\EndWhile
