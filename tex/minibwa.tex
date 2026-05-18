@@ -401,7 +401,7 @@ With batching, minibwa is $\sim$2.5 times as fast.
 Minibwa is $\sim$4.6 times as fast as BWA-MEM for finding $(19,2)$-SMEMs.
 The gap is larger because Algorithm~\ref{algo:smem} is more efficient to skip short SMEMs.
 
-\subsection{Seeding, chaining and base alignment}
+\subsection{Seeding, chaining and base alignment}\label{sec:align}
 
 Minibwa seeds a query sequence $P$ in two rounds.
 It first finds all $(19,1)$-SMEMs.
@@ -413,10 +413,15 @@ However, as the old SMEM-finding algorithm is slow for $(19,2)$-SMEMs in the sec
 we ended up with a different seeding strategy in BWA-MEM.
 
 The chaining algorithm in minibwa is similar to minimap2~\citep{Li:2018ab} except minor adjustment for variable-length seeds.
-This chaining algorithm is more robust than BWA-MEM's heuristic.
-Minibwa uses the same core routines in minimap2 for base alignment.
-In comparison to BWA-MEM, minimap2 and minibwa test ungapped alignment before performing full dynamic programming.
-This speeds up short-read alignment.
+Minibwa retains up to 50 best chains for a short read
+and uses the minimap2 algorithm to close gaps between seeds or extends the first or the last seeds.
+Minibwa applies SIMD-based dynamic programming~\citep{Suzuki:2018aa} if an ungapped alignment contains many mismatches.
+
+In comparison, BWA-MEM uses a heuristic chaining algorithm that is less accurate.
+It only performs extension alignment from each seed but does not attempt to close gaps between seeds.
+For reads from highly repetitive regions,
+BWA-MEM tends to test more chains than minibwa but to fill a smaller portion of the dynamic programming matrix in each extension.
+Overall, BWA-MEM still pays more effort for reads in centromeres or acrocentric short arms.
 
 \subsection{Paired-end mapping}
 
@@ -445,7 +450,7 @@ The length-adjusted parameter $\theta(\ell)$ reaches $(\theta_s+\theta_l)/2$ at 
 
 \subsection{Mapping directional bisulfite sequencing reads}
 
-Like BWA-Meth, minibwa concatenates the C-to-T converted reference genome
+Like BWA-Meth~\citep{Pedersen:2014aa}, minibwa concatenates the C-to-T converted reference genome
 and the G-to-A converted reference genome and constructs one FM-index.
 This index consists of four copies of the reference genome:
 forward C-to-T converted genome, forward G-to-A genome,
@@ -467,16 +472,54 @@ Hi-C short reads and directional BS-seq reads.
 
 \begin{figure*}
 \includegraphics[width=\textwidth]{fig-roc.pdf}
-\caption{Evaluating mapping accuracy on simulated data.}\label{fig:roc}
+\caption{Mapping accuracy measured on simulated reads.
+Short and long reads are simulated from GRCh38, T2T-CHM13 or the HG002 diploid genomes and are mapped to the corresponding source genomes with various read aligners.
+Suppose a read is originated from genomic interval $G_s$ in simulation
+and is mapped to interval $G_a$ by an aligner.
+It is considered mapped correctly if $|G_s\cap G_a|/|G_s\cup G_a|\ge10\%$.
+Each point in the figures gives the fraction of mapped reads and the fraction of correctly mapped at a mapping quality threshold.
+{\bf (a)} $2\times150$ bp paired-end reads simulated from GRCh38.
+{\bf (b)} $2\times150$ bp paired-end reads simulated from T2T-GRCh38.
+{\bf (c)} Same reads in {\bf (b)} but excluding reads from centromeres or acrocentric short arms.
+{\bf (d)} Same reads in {\bf (a)} but mapped in the methylation mode.
+{\bf (e)} HiFi and Nanopore reads simulated from T2T-CHM13.
+{\bf (f)} HiFi reads simulated from the diploid HG002 genome consisting of two haplotypes.
+}\label{fig:roc}
 \end{figure*}
 
 We simulated short reads using mason~\citep{fu_mi_publications962} with
 ``{\tt -{}-illumina-read-length 150 -{}-illumina-prob-mismatch-scale\\2.5}''.
-We simulated long reads with Badread~\citep{Wick2019}.
-We used default option for Nanopore reads
+We simulated long reads with Badread~\citep{Wick2019},
+with the default option for Nanopore reads
 and option ``{\tt -{}-error\_model pacbio2021 -{}-qscore\_model pacbio2021 -{}-length 15000,3000\\-{}-identity 27,3}'' for HiFi reads.
+We encoded the true read coordiates in read names with paftools in the minimap2 package.
+and plotted the results (Fig.~\ref{fig:roc}).
+A mapper of higher accuracy tends to yield a curve closer to the upper left corner.
+
+BWA-MEM is slightly more accurate than minibwa for WGS short reads (Fig.~\ref{fig:roc}a and Fig.~\ref{fig:roc}b).
+The difference is primarily driven by centromeric or acrocentric regions (Fig.~\ref{fig:roc}b versus Fig.~\ref{fig:roc}c)
+as minibwa pays less effort in such regions (Section~\ref{sec:align}).
+Minibwa competes with minimap2~\citep{Li:2018ab} and Winnowmap2~\citep{Jain:2020aa,Jain:2022ua} for mapping accurate long reads (Fig.~\ref{fig:roc}e and Fig.~\ref{fig:roc}f).
+
+All aligners shown in Fig.~\ref{fig:roc}d use the 3-base strategy and should be able to align normal WGS reads.
+Both BWA-Meth~\citep{Pedersen:2014aa} and BISCUIT~\citep{Zhou:2024ac} are built on top of BWA-MEM.
+BWA-Meth is not as accurate as minibwa due to its limitations explained in Introduction.
+In theory, BISCUIT uses a better strategy than minibwa because
+it properly penalizes a mismatch between a T base on the reference and a C on the read --- this would not happen unless there were a real SNP.
+It is not clear to us why BISCUIT is less accurate than minibwa.
+Bismark is known to map fewer reads than BWA-Meth~\citep{Foox:2021aa,Gong_2022,Kerns_2025,Lin_2025}.
+
+We note that on real data, most false read alignment at high mapping quality is caused by large structural variants between individuals.
+For example, if the reference genome has one copy of a gene but the sequenced sample has an extra copy,
+all reads from the extra copy will be mismapped at high mapping quality.
+The theoretical accuracy as is shown in Fig.~\ref{fig:roc} may not be strongly correlated with downstream analyses.
 
 \subsection{Mapping performance on real data}
+
+\begin{figure*}
+\includegraphics[width=\textwidth]{fig-perf}
+\caption{Speed and peak memory on real data.}\label{fig:perf}
+\end{figure*}
 
 \subsection{Effect on short-read variant calling}
 
