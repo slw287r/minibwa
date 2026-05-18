@@ -69,16 +69,16 @@ BWA-MEM is the sole performance and cost bottleneck in variant calling pipelines
 Given that human Whole-Genome Sequencing (WGS) accounts for the vast majority of sequencing data volume, this inefficiency is particularly pronounced.
 There have been several efforts to accelerate the original BWA-MEM algorithm.
 BWA-MEM2~\citep{DBLP:conf/ipps/VasimuddinMLA19} revamps the memory layout of FM-index
-and accelerates extension alignment with Single Instruction Multiple Data (SIMD) based algorithm.
+and accelerates extension alignment with Single Instruction Multiple Data (SIMD) instructions.
 It is typically 50--100\% faster and outputs identical alignment.
 BWA-MEME~\citep{Jung:2022aa} further speeds up BWA-MEM2 with learned index and still promises identical output.
+BWA-MEM3 is a new fork of BWA-MEM2 with speedup from the latency hiding technique and more frequent ungapped alignment to skip full dynamic programming.
 Sentieon BWA is a proprietary drop-in replacement of BWA-MEM.
 Parabricks~\citep{OConnell:2023aa,Zhu2025.07.23.666378} provides a GPU-based partial reimplementation of BWA-MEM
 that produces alignment functionally equivalent~\citep{Regier:2018aa} to BWA-MEM alignment.
 
 However, designed more than a decade ago, BWA-MEM has several limitations that prevent further optimization but can be alleviated if we accept breaking changes.
-First, BWA-MEM uses a complex algorithm to seed alignment~\citep{Li:2012fk}.
-It is challenging to apply the latency hiding technique, which we will explain later, to speed up this step.
+First, BWA-MEM uses a complex algorithm to seed alignment~\citep{Li:2012fk} which is slower than a recent algorithm~\citep{DBLP:conf/dlt/Gagie24,Li:2024ac}.
 Second, BWA-MEM chaining is heuristic and inferior to the minimap2 chaining algorithm~\citep{Li:2018ab}.
 It likely does not work well for short reads longer than 500bp, which will become more common with Roche's SBX sequencing technology~\citep{Kokoris2025.02.19.639056}.
 The boundary between short and long reads is blurring.
@@ -423,7 +423,7 @@ For reads from highly repetitive regions,
 BWA-MEM tends to test more chains than minibwa but to fill a smaller portion of the dynamic programming matrix in each extension.
 Overall, BWA-MEM still pays more effort for reads in centromeres or acrocentric short arms.
 
-\subsection{Paired-end mapping}
+\subsection{Paired-end mapping}\label{sec:pe}
 
 Minibwa finds properly paired reads using the same logic as BWA-MEM.
 If a read is mapped but its mate is not mapped nearby,
@@ -518,10 +518,43 @@ The theoretical accuracy as is shown in Fig.~\ref{fig:roc} may not be strongly c
 
 \begin{figure*}
 \includegraphics[width=\textwidth]{fig-perf}
-\caption{Speed and peak memory on real data.}\label{fig:perf}
+\caption{Speed and peak memory on real data.
+Reads are aligned to GRCh38.
+32 CPU threads are specified for all mappers except for Winnowmap2 which automatically uses all available CPUs.
+Alignment output is redirected to {\tt /dev/null} except for Bismark which has to generate BAM files.}\label{fig:perf}
 \end{figure*}
 
+We obtained multiple whole-genome real datasets (see Data Availability) and aligned them to GRCh38 (Fig.~\ref{fig:perf}).
+For standard WGS short reads, strobealign is the fastest and Bowtie2 is the most memory efficient.
+BWA-MEM2 is 67\% faster than BWA-MEM and both BWA-MEME and BWA-MEM3 are 47\% faster than BWA-MEM2 (Fig.~\ref{fig:perf}a).
+Minibwa is 284\% faster than BWA-MEM, 130\% faster than BWA-MEM2 and 57\% faster than BWA-MEME and BWA-MEM3.
+The gap between minibwa and other BWA-MEM implementations is smaller for Hi-C and Roche's single-end SBX reads
+perhaps because minibwa's new mate rescue heuristic (Section~\ref{sec:pe}) is disabled for these data types.
+For long reads, minibwa is a little faster than minimap2 and is an order of magnitude faster than Winnowmap2.
+For BS-seq short reads, minibwa also leads in performance.
+
 \subsection{Effect on short-read variant calling}
+
+\begin{table}[b]
+\caption{Short-read variant calling accuracy}\label{tab:var}
+\tabcolsep=0pt%%
+\begin{tabular*}{\columnwidth}{@{\extracolsep{\fill}}lrrrr@{\extracolsep{\fill}}}
+\toprule
+& \multicolumn{2}{@{}c@{}}{SNP} & \multicolumn{2}{@{}c@{}}{Indel} \\
+\cline{2-3}\cline{4-5}
+Aligner & FN & FP & FN & FP \\
+\midrule
+BWA-MEM & 46,895 & 7,585 & 37,425 & 5,218 \\
+Minibwa & 44,478 & 8,221 & 36,358 & 5,418 \\
+\botrule
+\end{tabular*}
+\end{table}
+
+We aligned HG002 short reads to GRCh38, called small variants with DeepVariant~\citep{Poplin:2018ab}
+and compared the calls to the GIAB ground truth~\citep{Hansen2025.09.21.677443} with RTG vcfeval~\citep{Cleary023754}.
+As is shown in Table~\ref{tab:var}, minibwa called slightly more false positives but fewer false negatives.
+We inspected at the minibwa-specific false positive SNPs
+and found they are mostly borderline cases that pass DeepVariant's internal filter in the minibwa alignment but are flagged as {\tt RefCall} in the BWA-MEM alignment.
 
 \section{Discussions}
 
@@ -545,6 +578,12 @@ This work is supported by National Institute of Health grant R01HG010040, R01HG0
 \section*{Data availability}
 
 The minibwa source code is available at \url{https://github.com/lh3/minibwa}.
+HG002 NovaSeq short reads: \url{https://bit.ly/hg002-baid-sr-30x};
+HG002 PacBio HiFi reads: \url{https://bit.ly/hg002-hprc-revio};
+HG002 Nanopore R10 reads: \url{s3://ont-open-data/giab\_2023.05/};
+HG002 Hi-C short reads: \url{https://bit.ly/hg002-hprc-hic1};
+HG002 SBX reads: \url{https://bit.ly/hg002-sbx-091025};
+NA12878 directional bisulfite sequencing reads: SRR4235788.
 
 \bibliographystyle{apalike}
 {\sffamily\small

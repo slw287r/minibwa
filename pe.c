@@ -461,7 +461,7 @@ static int32_t mb_matesw(void *km, const mb_opt_t *opt, const l2b_t *l2b, int32_
 
 void mb_pair(void *km, const mb_opt_t *opt, const l2b_t *l2b, int32_t n_hit[2], mb_hit_t *hit[2], const mb_pestat_t pes[4], int32_t qlen[2], char *const qseq[2])
 {
-	int32_t r, i, score_se, do_matesw, is_meth = !!(opt->flag & MB_F_METH);
+	int32_t r, i, dp_max_se[2], score_se, do_matesw, is_meth = !!(opt->flag & MB_F_METH);
 	mb_pairaux_t paux;
 	mb_hit_t *h[2];
 
@@ -485,9 +485,15 @@ void mb_pair(void *km, const mb_opt_t *opt, const l2b_t *l2b, int32_t n_hit[2], 
 	}
 	if (paux.n_pp == 0) goto end_pairing;
 
+	for (r = 0; r < 2; ++r) {
+		for (dp_max_se[r] = 0, i = 0; i < n_hit[r]; ++i)
+			if (dp_max_se[r] < hit[r][i].p->dp_max)
+				dp_max_se[r] = hit[r][i].p->dp_max;
+	}
+	score_se = dp_max_se[0] + dp_max_se[1];
+
 	h[0] = &hit[0][paux.i[0]];
 	h[1] = &hit[1][paux.i[1]];
-	score_se = h[0]->p->dp_max + h[1]->p->dp_max;
 	if (paux.score >= score_se - opt->pen_unpair * opt->a) {
 		int32_t mapq_pe, score2 = paux.sub_sc;
 		double identity;

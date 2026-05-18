@@ -372,7 +372,7 @@ static inline void yes_or_no(mb_opt_t *opt, uint64_t flag, int long_idx, const c
 
 int main_map(int argc, char *argv[])
 {
-	const char *opt_str = "x:o:k:c:m:p:A:B:b:O:E:t:K:N:PyYR:aul:w:W:g:5s:";
+	const char *opt_str = "x:o:k:c:m:p:A:B:U:b:O:E:t:K:N:PyYR:aul:w:W:g:5s:";
 	int32_t c;
 	mb_idx_t *idx;
 	mb_opt_t mo;
@@ -403,6 +403,7 @@ int main_map(int argc, char *argv[])
 		else if (c == 'N') mo.best_n = atoi(o.arg);
 		else if (c == 'A') mo.a = atoi(o.arg);
 		else if (c == 'B') mo.b = atoi(o.arg);
+		else if (c == 'U') mo.pen_unpair = atoi(o.arg);
 		else if (c == 'l') mo.max_sr_len = kom_parse_num(o.arg, 0);
 		else if (c == 'g') mo.max_gap = kom_parse_num(o.arg, 0);
 		else if (c == 'w') mo.bw = kom_parse_num(o.arg, 0);
