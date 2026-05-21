@@ -545,16 +545,14 @@ For BS-seq short reads, minibwa also leads in performance.
 Aligner & FN & FP & FN & FP \\
 \midrule
 BWA-MEM & 46,895 & 7,585 & 37,425 & 5,218 \\
-Minibwa & 44,478 & 8,221 & 36,358 & 5,418 \\
+Minibwa & 46,367 & 7,544 & 36,321 & 5,308 \\
 \botrule
 \end{tabular*}
 \end{table}
 
-We aligned HG002 short reads to GRCh38, called small variants with DeepVariant~\citep{Poplin:2018ab}
-and compared the calls to the GIAB ground truth~\citep{Hansen2025.09.21.677443} with RTG vcfeval~\citep{Cleary023754}.
-As is shown in Table~\ref{tab:var}, minibwa called slightly more false positives but fewer false negatives.
-We inspected at the minibwa-specific false positive SNPs
-and found they are mostly borderline cases that pass DeepVariant's internal filter in the minibwa alignment but are flagged as {\tt RefCall} in the BWA-MEM alignment.
+We aligned HG002 short reads to GRCh38, called small variants with DeepVariant v1.10.0~\citep{Poplin:2018ab}
+and compared the calls to the GIAB Q100 ground truth v1.1~\citep{Hansen2025.09.21.677443} with RTG vcfeval v3.13~\citep{Cleary023754}.
+As is shown in Table~\ref{tab:var}, minibwa closely matches BWA-MEM on small variant calling accuracy.
 
 \section{Discussions}
 
