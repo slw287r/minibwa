@@ -580,7 +580,7 @@ mb_hit_t *mb_map_sai(const mb_opt_t *opt, const mb_idx_t *idx, int64_t qlen, con
 	// collect anchors
 	chn_pen_gap = opt->chain_gap_scale * .01 * opt->min_len;
 	if (kom_dbg_flag & MB_DBG_SEED) mb_dbg_seed(u->n, u->a, qname);
-	mb_anchor(b->km, idx, u, qlen, mt, opt->max_occ, &v);
+	mb_anchor(b->km, idx, u, opt->min_len, qlen, seq, mt, opt->max_occ, &v);
 	kfree(b->km, u->a); // no longer needed
 	u->n = 0, u->a = 0;
 
