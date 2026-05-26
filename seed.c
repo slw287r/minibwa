@@ -248,8 +248,8 @@ static void mb_anchor_split_meth(void *km, const l2b_t *l2b, int32_t min_len, in
 					p->len = j - j0;
 					p->qpos = q->qpos - (q->len - j);
 					p->tpos = q->tpos - (q->len - j);
-					j0 = j + 1;
 				}
+				j0 = j + 1;
 			}
 		}
 	}
