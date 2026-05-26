@@ -559,9 +559,7 @@ static void mb_align1(void *km, const mb_opt_t *opt, const mb_idx_t *mi, int qle
 	r2->cnt = 0;
 	if (r->cnt == 0) return;
 	if (r->rev) mt = l2b_meth_rev(mt);
-	ksw_gen_nt4_mat(mat, opt->a, opt->b, opt->b_ts, opt->b_ambi);
-	if (mt == L2B_METH_C2T) mat[1 * 5 + 3] = opt->a;
-	else if (mt == L2B_METH_G2A) mat[2 * 5 + 0] = opt->a;
+	ksw_gen_nt4_mat(mat, opt->a, opt->b, opt->b_ts, opt->b_ambi, (int)mt);
 	bw = (int)(opt->bw * 1.5 + 1.);
 	if (!is_sr) {
 		bw_long = (int)(opt->bw_long * 1.5 + 1.);
@@ -775,9 +773,7 @@ static int mb_align1_inv(void *km, const mb_opt_t *opt, const mb_idx_t *mi, int 
 	if (tl < opt->min_chain_score || tl > opt->max_gap) return 0;
 
 	if (!r1->rev) mt = l2b_meth_rev(mt); // TODO: check if this is correct
-	ksw_gen_nt4_mat(mat, opt->a, opt->b, opt->b_ts, opt->b_ambi);
-	if (mt == L2B_METH_C2T) mat[1 * 5 + 3] = opt->a;
-	else if (mt == L2B_METH_G2A) mat[2 * 5 + 0] = opt->a;
+	ksw_gen_nt4_mat(mat, opt->a, opt->b, opt->b_ts, opt->b_ambi, (int)mt);
 
 	tseq = (uint8_t*)kmalloc(km, tl);
 	l2b_getseq(mi->l2b, r1->tid, r1->te, r2->ts, tseq);
