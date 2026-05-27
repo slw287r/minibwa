@@ -49,7 +49,7 @@ It speeds up BWA-MEM2 further with additional prefetch for seeding,
 new heuristics to skip unnecessary mate rescue and reduced effort in highly repetitive regions
 where reads would anyway be wrongly mapped due to structural changes.
 Minibwa is about four times as fast as BWA-MEM and over twice as fast as BWA-MEM2 at comparable accuracy.
-It also natively supports directional bisulfite sequencing data to higher mapping accuracy.
+It also natively supports directional bisulfite sequencing data to high mapping accuracy.
 \vspace{0.5em}\\
 \textbf{Availability and implementation:}
 \url{https://github.com/lh3/minibwa}
@@ -65,84 +65,92 @@ only several are maintained and remain widely used.
 The two most notable short-read mappers for DNA sequencing data are Bowtie2~\citep{Langmead:2012fk} and BWA-MEM~\citep{Li:2013aa}, both based on FM-index~\citep{DBLP:conf/focs/FerraginaM00}.
 While Bowtie2 is equally popular for general purposes, BWA-MEM is more often used for variant calling.
 
-BWA-MEM is the primary bottleneck for both performance and cost in variant calling pipelines.
+BWA-MEM is the primary performance and cost bottleneck in variant calling pipelines.
 Given that human Whole-Genome Sequencing (WGS) accounts for the vast majority of sequencing data volume, this inefficiency is particularly pronounced.
-There have been several efforts to accelerate the original BWA-MEM algorithm.
+There have been several efforts to accelerate the original BWA-MEM algorithm while maintaining identical output.
 BWA-MEM2~\citep{DBLP:conf/ipps/VasimuddinMLA19} revamps the memory layout of FM-index
 and accelerates extension alignment with Single Instruction Multiple Data (SIMD) instructions.
-It is 50--100\% faster while producing identical alignment.
+It is 50--100\% faster than BWA-MEM.
 BWA-MEME~\citep{Jung:2022aa} further speeds up BWA-MEM2 seeding with learned indices.
 BWA-MEM3 is a new fork of BWA-MEM2 with speedup from latency hiding and additional fast paths to skip full dynamic programming.
 Sentieon BWA is a proprietary drop-in replacement of BWA-MEM.
-Parabricks~\citep{OConnell:2023aa,Zhu2025.07.23.666378} provides a GPU-based partial reimplementation of BWA-MEM
-that produces alignment functionally equivalent~\citep{Regier:2018aa} to BWA-MEM alignment.
+Parabricks~\citep{OConnell:2023aa,Zhu2025.07.23.666378} ports BWA-MEM to GPU.
+It does not promise identical output but still produces alignment qualitatively equivalent to BWA-MEM.
 
 However, designed more than a decade ago, BWA-MEM has several limitations that prevent further optimization without changing the output.
 First, BWA-MEM uses a complex algorithm to seed alignment~\citep{Li:2012fk} which is slower than a recent algorithm~\citep{DBLP:conf/dlt/Gagie24,Li:2024ac}.
 Second, BWA-MEM chaining is heuristic and inferior to the minimap2 chaining algorithm~\citep{Li:2018ab}.
-It does not work well for short reads longer than 500bp, which will become more common with Roche's SBX sequencing technology~\citep{Kokoris2025.02.19.639056}.
-The boundary between short and long reads is blurring.
+It does not work well for reads longer than 500bp, which will become more common with Roche's SBX sequencing technology~\citep{Kokoris2025.02.19.639056} ---
+the boundary between short and long reads is blurring.
 Third, BWA-MEM uses a non-SIMD-based extension algorithm with intricate boundary conditions.
-This greatly complicates SIMD-based equivalence in BWA-MEM2 and increases maintenance burden.
+This complicates SIMD-based equivalence in BWA-MEM2 and increases maintenance burden.
 Fourth, BWA-MEM tries too hard in highly repetitive regions.
 Due to rapid evolution in centromeres~\citep{Gao2025.12.09.693231}, 
 exact base alignment in centromeres is challenging even with complete assemblies~\citep{Bzikadze:2022aa}.
 Exhaustive alignment in centromeres is a waste of effort
 as we cannot accurately place centromeric short reads anyway due to large structural differences.
+There is still room for improvement if breaking changes can be introduced.
 
-In addition to algorithms for aligning standard DNA sequencing data,
-there are also many algorithms for aligning bisulfite sequencing (BS-seq) reads.
-These include
-BSMAP~\citep{Xi:2009aa},
-Bismark~\citep{Krueger:2011aa},
-BS-Seeker~\citep{Chen:2010aa,Guo:2013aa,Huang:2018aa},
-BWA-Meth~\citep{Pedersen:2014aa},
-BitMapperBS~\citep{Cheng:2018aa},
-gemBS~\citep{Merkel:2019aa},
-HISAT-3N~\citep{Zhang:2021ac},
-BSBolt~\citep{Farrell:2021aa},
-abismal~\citep{de_Sena_Brandine_2021},
-FAME~\citep{Fischer_2023},
-BISCUIT~\citep{Zhou:2024ac},
-RMapAlign3N~\citep{Muller:2025aa}
-and ARYANA-BS~\citep{Nikaein_2025}.
-Several generic short-read aligners, such as
-GSNAP~\citep{Wu:2010uq},
-segemehl~\citep{Otto:2014aa}
-and Arioc~\citep{Wilton:2018aa},
-also natively support BS-seq.
+BWA-MEM does not natively support bisulfite sequencing (BS-seq) reads.
+BWA-Meth~\citep{Pedersen:2014aa} is a wrapper around stock BWA-MEM that uses the so-called 3-base strategy to align directional BS-seq data.
+Without touching the BWA-MEM source code, BWA-Meth wastes compute on unsuccessful extension alignment and breaks the pairing logic.
+BISCUIT~\citep{Zhou:2024ac} addresses these issues by customizing the BWA-MEM source code.
+As a tradeoff, though, the deep code integration makes it challenging to adopt the faster BWA-MEM2 implementation.
+Combining an efficient mapping algorithm with the BISCUIT strategy would yield an even more capable BS-seq mapper.
 
-Among these algorithms, Bismark~\citep{Krueger:2011aa} is by far the most cited,
-partly because it is a wrapper around stock Bowtie2~\citep{Langmead:2012fk}
-which is battle tested and whose behavior is well understood.
-BWA-Meth~\citep{Pedersen:2014aa} is a popular wrapper around BWA-MEM
-and has been shown to have good performance in recent benchmarks~\citep{Foox:2021aa,Gong_2022,Kerns_2025,Lin_2025}.
-It concatenates C-to-T and G-to-A converted reference genomes and builds one FM-index.
-For paired-end reads produced with the directional protocol,
-BWA-Meth converts {\tt C} bases on read 1 to {\tt T} and converts {\tt G} bases on read 2 to {\tt A}.
-It aligns converted reads to the FM-index with stock BWA-MEM
-and postprocesses the BWA-MEM output to generate the final alignment.
-BWA-Meth has several limitations as a wrapper.
-First, with the directional protocol, read 1 should be mapped either to the forward strand of the C-to-T reference or the reverse strand of the G-to-A reference.
-Unaware of this constraint, BWA-MEM will also attempt to map read 1 to the reverse C-to-T and forward G-to-A reference genomes.
-Although these hits are later filtered out by BWA-Meth,
-they waste computing time and may affect mapping quality calculation.
-Second, if read 1 is mapped to the C-to-T reference, read 2 is expected to get mapped to the G-to-A reference
---- the two reads in a pair are not located on the same contig.
-This breaks BWA-MEM read pairing.
-Third, BWA-MEM attempts to rescue a read if its mate is well aligned.
-However, because the two reads are not supposed to be aligned to the same contig due to base conversion,
-mate rescue would fail.
-
-BISCUIT~\citep{Zhou:2024ac} and BSBolt~\citep{Farrell:2021aa} are also built upon BWA-MEM.
-They avoid the issues mentioned above by customizing BWA-MEM source code specifically for BS-seq data.
-They are theoretically more rigorous than BWA-Meth.
-As a tradeoff, though, the deep code customization makes it challenging to adopt the faster BWA-MEM2 implementation.
-Combining an efficient mapping algorithm with the BISCUIT/BSBolt strategy would yield an even better BS-seq mapper.
+%In addition to algorithms for aligning standard DNA sequencing data,
+%there are also many algorithms for aligning bisulfite sequencing (BS-seq) reads.
+%These include
+%BSMAP~\citep{Xi:2009aa},
+%Bismark~\citep{Krueger:2011aa},
+%BS-Seeker~\citep{Chen:2010aa,Guo:2013aa,Huang:2018aa},
+%BWA-Meth~\citep{Pedersen:2014aa},
+%BitMapperBS~\citep{Cheng:2018aa},
+%gemBS~\citep{Merkel:2019aa},
+%HISAT-3N~\citep{Zhang:2021ac},
+%BSBolt~\citep{Farrell:2021aa},
+%abismal~\citep{de_Sena_Brandine_2021},
+%FAME~\citep{Fischer_2023},
+%BISCUIT~\citep{Zhou:2024ac},
+%RMapAlign3N~\citep{Muller:2025aa}
+%and ARYANA-BS~\citep{Nikaein_2025}.
+%Several generic short-read aligners, such as
+%GSNAP~\citep{Wu:2010uq},
+%segemehl~\citep{Otto:2014aa}
+%and Arioc~\citep{Wilton:2018aa},
+%also natively support BS-seq.
+%
+%Among these algorithms, Bismark~\citep{Krueger:2011aa} is by far the most cited,
+%partly because it is a wrapper around stock Bowtie2~\citep{Langmead:2012fk}
+%which is battle tested and whose behavior is well understood.
+%BWA-Meth~\citep{Pedersen:2014aa} is a popular wrapper around BWA-MEM
+%and has been shown to have good performance in recent benchmarks~\citep{Foox:2021aa,Gong_2022,Kerns_2025,Lin_2025}.
+%It concatenates C-to-T and G-to-A converted reference genomes and builds one FM-index.
+%For paired-end reads produced with the directional protocol,
+%BWA-Meth converts {\tt C} bases on read 1 to {\tt T} and converts {\tt G} bases on read 2 to {\tt A}.
+%It aligns converted reads to the FM-index with stock BWA-MEM
+%and postprocesses the BWA-MEM output to generate the final alignment.
+%BWA-Meth has several limitations as a wrapper.
+%First, with the directional protocol, read 1 should be mapped either to the forward strand of the C-to-T reference or the reverse strand of the G-to-A reference.
+%Unaware of this constraint, BWA-MEM will also attempt to map read 1 to the reverse C-to-T and forward G-to-A reference genomes.
+%Although these hits are later filtered out by BWA-Meth,
+%they waste computing time and may affect mapping quality calculation.
+%Second, if read 1 is mapped to the C-to-T reference, read 2 is expected to get mapped to the G-to-A reference
+%--- the two reads in a pair are not located on the same contig.
+%This breaks BWA-MEM read pairing.
+%Third, BWA-MEM attempts to rescue a read if its mate is well aligned.
+%However, because the two reads are not supposed to be aligned to the same contig due to base conversion,
+%mate rescue would fail.
+%
+%BISCUIT~\citep{Zhou:2024ac} and BSBolt~\citep{Farrell:2021aa} are also built upon BWA-MEM.
+%They avoid the issues mentioned above by customizing BWA-MEM source code specifically for BS-seq data.
+%They are theoretically more rigorous than BWA-Meth.
+%As a tradeoff, though, the deep code customization makes it challenging to adopt the faster BWA-MEM2 implementation.
+%Combining an efficient mapping algorithm with the BISCUIT/BSBolt strategy would yield an even better BS-seq mapper.
 
 In this article, we will describe minibwa, the next iteration of BWA-MEM.
 Minibwa aligns standard WGS short reads and Hi-C reads like BWA-MEM
-and additionally maps accurate long reads and natively supports BS-seq data.
+and additionally maps accurate long reads like minimap2 and it natively supports BS-seq data.
 
 \section{Methods}
 
@@ -154,7 +162,7 @@ BWA-MEM2 also batches suffix array (SA) query and implements SIMD-based alignmen
 Further performance gains in minibwa primarily come from the new SMEM algorithm,
 more frequent use of ungapped alignment and reduced effort in highly repetitive regions such as centromeres.
 
-\begin{table}[b]
+\begin{table}[t]
 \caption{Relationship with BWA-MEM, ropebwt3 and minimap2\label{tab:relation}}
 \begin{tabular*}{\columnwidth}{@{\extracolsep\fill}lll@{\extracolsep\fill}}
 \toprule
@@ -173,7 +181,7 @@ Pairing   & BWA-MEM  & Ungapped fast path \\
 
 For the completeness of the method section, we will describe the basic theory on FM-index in brief.
 Additional technical details and explanation can be found in \citet{Li:2024ac}.
-Note that the original BWA paper~\citep{Li:2009uq} used closed intervals but here we are using half-closed-half-open intervals.
+Note that the original BWA paper~\citep{Li:2009uq} used closed intervals but here we adopt half-closed-half-open intervals for consistency with our recent work.
 
 \subsection{Definitions}
 
@@ -196,7 +204,7 @@ $S(i)$ is the position of the $i$-th smallest suffix of $T$.
 $B$ is the \emph{Burrows-Wheeler Transform} (\emph{BWT}) of $T$.
 By definition, $B[i]=T[S(i)-1]$.
 
-\begin{algorithm}[tb]
+\begin{algorithm}[b]
 	\caption{Backward and forward extension}\label{algo:backfor}
 	\begin{algorithmic}[1]
 		\Function{BackwardExt}{$(k,k',s),a$}
@@ -244,7 +252,7 @@ Most calls to $\pi(a,k)$ incur cache misses.
 
 \subsection{A brief introduction to prefetching}
 
-\begin{figure}[tb]
+\begin{figure}[b]
 \includegraphics[width=\columnwidth]{fig-prefetch.pdf}
 \caption{Example of memory prefetch.
 {\bf (a)} Standard backward search for three 5bp query strings.
@@ -457,23 +465,24 @@ The length-adjusted parameter $\theta(\ell)$ reaches $(\theta_s+\theta_l)/2$ at 
 
 \subsection{Mapping directional bisulfite sequencing reads}\label{sec:meth}
 
-Like BWA-Meth~\citep{Pedersen:2014aa}, minibwa concatenates the C-to-T converted reference genome
+The minibwa BS-seq read mapping algorithm is heavily influenced by BWA-Meth~\citep{Pedersen:2014aa} and BISCUIT~\citep{Zhou:2024ac}.
+Like BWA-Meth, minibwa concatenates the C-to-T converted reference genome
 and the G-to-A converted reference genome and constructs one FM-index for both strands.
 This index consists of four copies of the reference genome:
 forward C-to-T converted genome, forward G-to-A genome,
 reverse G-to-A converted genome and reverse C-to-T genome.
+
 Given a BS-seq read pair, minibwa converts all C bases on read 1 to T
 and converts all G bases on read 2 to A.
-It then finds seeds against the converted FM-index.
+It finds seeds against the converted FM-index.
 A seed on read 1 is only retained if it comes from the forward C-to-T genome or the reverse G-to-A genome;
 similarly, a seed on read 2 is retained if it comes from the forward G-to-A or the reverse C-to-T genome.
-Minibwa applies chaining normally and performs base alignment and mate rescue entirely in the 3-nucleotide space.
-A weakness of this approach is that a reference T base matching a read C base would not be penalized.
-BISCUIT~\citep{Zhou:2024ac} addresses this issue by doing alignment in the normal 4-nucleotide space
-with an asymmetric scoring matrix that penalizes a T-to-C mismatch but not C-to-T mismatch, which is in principle more informative.
-In practice, however, the penalty applies only at unmethylated C positions on the converted strand,
-and the dominant source of read-reference disagreement on directional BS-seq data is genuine C-to-T conversion rather than spurious T-to-C mismatch,
-so the theoretical advantage may not translate into measurable accuracy gains (see Section~\ref{sec:eval-sim}).
+Due to base conversion, a reference T is considered a match to a read C, but this should not happen without SNPs.
+To avoid such T-to-C mismatches, minibwa retrieves the original reference and the original read sequences in each seed match,
+splits the seed match at T-to-C mismatches, and discards resulting split seeds shorter than 19 bp.
+Minibwa applies chaining normally.
+Like BISCUIT, it performs base alignment and mate rescue using the original reference and read sequences but with
+an asymmetric scoring matrix that permits C-to-T mismatches and penalizes T-to-C mismatches.
 
 \section{Results}
 
@@ -525,9 +534,11 @@ Minibwa competes with minimap2 and Winnowmap2 for long-read mapping (Fig.~\ref{f
 
 All BS-seq aligners in Fig.~\ref{fig:roc}d use the 3-base strategy and are therefore also capable of mapping normal WGS reads.
 Both BWA-Meth and BISCUIT are built on top of BWA-MEM.
-BWA-Meth is not as accurate due to its limitations explained in Introduction.
+BWA-Meth is not as accurate due to its limitations mentioned in Introduction.
 Bismark is known to map fewer reads than BWA-Meth~\citep{Gong_2022}.
-It is unclear why BISCUIT is less accurate than minibwa despite using a theoretically superior strategy (Section~\ref{sec:meth}).
+It is unclear why BISCUIT is less accurate than minibwa despite using a similar strategy (Section~\ref{sec:meth}).
+Notably, without ``{\tt -i -I300,30}'', BISCUIT would force reads to chromosomal contigs in GRCh38 and disable read pairing.
+Its accuracy would be a lot lower, comparable to BWA-Meth.
 
 We note that on real data, most false read alignment at high mapping quality is caused by large structural variants between individuals.
 For example, if the reference genome has one copy of a gene but the sequenced sample has an extra copy,
@@ -558,6 +569,14 @@ Across all six datasets, minibwa uses $<$20 GB memory at the peak, lower than mo
 
 \subsection{Effect on short-read variant calling}\label{sec:eval-var}
 
+We aligned HG002 short reads~\citep{Baid2020.12.11.422022} to GRCh38, called small variants with DeepVariant v1.10.0~\citep{Poplin:2018ab}
+and compared the calls to the GIAB Q100 ground truth v1.1~\citep{Hansen2025.09.21.677443} with RTG vcfeval v3.13~\citep{Cleary023754}.
+Minibwa closely matched or slightly improved on BWA-MEM (Table~\ref{tab:var}):
+528 fewer SNP FNs, 41 fewer SNP FPs, 1,104 fewer indel FNs, and 90 more indel FPs.
+We inspected indels only missed by BWA-MEM and found minibwa tends to align more reads with $>$10 bp indels,
+consistent with the algorithmic analysis (Section~\ref{sec:align}).
+Although strobealign is faster than minibwa (Fig.~\ref{fig:perf}), it does not compete with minibwa or BWA-MEM on small variant calling.
+
 \begin{table}[b]
 \caption{Short-read variant calling accuracy with DeepVariant}\label{tab:var}
 \tabcolsep=0pt%%
@@ -577,14 +596,6 @@ FN: false negative; FP: false positive.
 Numbers in bold indicate the best performer on each metric.
 \end{tablenotes}
 \end{table}
-
-We aligned HG002 short reads~\citep{Baid2020.12.11.422022} to GRCh38, called small variants with DeepVariant v1.10.0~\citep{Poplin:2018ab}
-and compared the calls to the GIAB Q100 ground truth v1.1~\citep{Hansen2025.09.21.677443} with RTG vcfeval v3.13~\citep{Cleary023754}.
-Minibwa closely matched or slightly improved on BWA-MEM (Table~\ref{tab:var}):
-528 fewer SNP FNs, 41 fewer SNP FPs, 1,104 fewer indel FNs, and 90 more indel FPs.
-We inspected indels only missed by BWA-MEM and found minibwa tends to align more reads with $>$10 bp indels,
-consistent with the algorithmic analysis (Section~\ref{sec:align}).
-Although strobealign is faster than minibwa (Fig.~\ref{fig:perf}), it does not compete with minibwa or BWA-MEM on small variant calling.
 
 \section{Discussions}
 
