@@ -10,7 +10,7 @@ MALLOC_O=	mimalloc.o
 PROG=		minibwa
 LIBS=		-lpthread -lz -lm
 ARCH=		$(shell uname -m)
-omp=		$(shell printf '\043include <omp.h>\nint main(){return 0;}' | $(CC) -x c -fopenmp - 2>/dev/null && echo "1" || echo "0")
+omp=		$(shell printf '\043include <omp.h>\nint main(){return 0;}' | $(CC) -x c -fopenmp -o /dev/null - 2>/dev/null && echo "1" || echo "0")
 
 ifneq ($(asan),)
 	CFLAGS+=-fsanitize=address

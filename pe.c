@@ -208,8 +208,8 @@ static void mb_pair_hits(void *km, const mb_opt_t *opt, const l2b_t *l2b, int32_
 
 static int32_t mb_ungap(void *km, int32_t qlen, const uint8_t *qseq, int32_t tlen, const uint8_t *tseq, int32_t kmer, l2b_meth_t mt, int32_t *max_i, int32_t *n_good, int32_t *n_kmer)
 { // a linear algorithm to find ungapped alignment
-	static uint8_t c2t[5] = { 0, 3, 2, 3, 4 };
-	static uint8_t g2a[5] = { 0, 1, 0, 3, 4 };
+	static uint8_t c2t[4] = { 0, 3, 2, 3 };
+	static uint8_t g2a[4] = { 0, 1, 0, 3 };
 	int32_t i, l, cap = 1 << kmer*2, mask = cap - 1, max, *a;
 	uint16_t *h, x;
 	*max_i = -1, *n_good = *n_kmer = 0;
@@ -355,7 +355,7 @@ static const mb_hit_t *mb_matesw_core(void *km, const mb_opt_t *opt, const l2b_t
 				if (ts2 < ts) ts2 = ts;
 				if (te2 > te) te2 = te;
 			}
-			if (max_ug >= 10 || max_ug >= n_kmer * 0.33)
+			if (max_ug >= 10 || max_ug >= n_kmer * 0.33 || (max_ug >= 3 && n_kmer < .1 * (len - 6))) // enough k-mers or low-complexity
 				mb_matesw_align(km, opt, len, seq[is_rev], te2 - ts2, &ref[ts2 - ts], &ht, min_sc, mt, ez);
 			if (ht.p) { // a good hit found
 				ht.tid = h0->tid;
