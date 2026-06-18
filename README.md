@@ -1,3 +1,4 @@
+[![BioConda](https://img.shields.io/conda/dn/bioconda/minibwa.svg?style=flag&label=BioConda)](https://anaconda.org/bioconda/minibwa)
 [![preprint](https://img.shields.io/badge/arXiv-2606.15357-blue)](https://arxiv.org/abs/2606.15357)
 
 ## Getting Started
