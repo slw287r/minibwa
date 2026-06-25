@@ -3,9 +3,11 @@
 #include <string.h>
 #include <assert.h>
 #include <stdint.h>
+#include <errno.h>
 #include "kommon.h"
 #include "kalloc.h"
 #include "bwt.h"
+#include "vmtch.h"
 
 /********************
  * Basic operations *
@@ -34,7 +36,11 @@ mb_bwt_t *mb_bwt_init(void)
 void mb_bwt_destroy(mb_bwt_t *bwt)
 {
 	if (bwt == 0) return;
-	free(bwt->pre); free(bwt->sa); free(bwt->data);
+	if (bwt->_mmap_base)
+		munmap(bwt->_mmap_base, bwt->_mmap_size);
+	else {
+		free(bwt->pre); free(bwt->sa); free(bwt->data);
+	}
 	free(bwt);
 }
 
@@ -671,5 +677,76 @@ mb_bwt_t *mb_bwt_load(const char *fn)
 		fread(bwt->sa, 8, bwt->n_sa, fp);
 	}
 	fclose(fp);
+	return bwt;
+}
+
+// On-disk header written by mb_bwt_save(). Mirrored here so mb_bwt_load_mmap()
+// can cast the mmap region directly instead of memcpy-ing each small field.
+// Field order and padding (4-byte magic + 4-byte sa_bit + 5 uint64_t) line up
+// with the struct's natural alignment on x86_64, so sizeof(mb_bwt_hdr_t) must
+// stay at 48.
+typedef struct {
+	char magic[4];
+	uint32_t sa_bit;
+	uint64_t primary;
+	uint64_t L2_1, L2_2, L2_3, L2_4; // on disk: bwt->L2[1..4]
+} mb_bwt_hdr_t;
+typedef char mb_bwt_hdr_size_check[sizeof(mb_bwt_hdr_t) == 48 ? 1 : -1];
+
+mb_bwt_t *mb_bwt_load_mmap(const char *fn)
+{
+	mb_bwt_t *bwt;
+	int fd;
+	struct stat buf;
+	off_t st_size;
+	void *m;
+	const char *p;
+
+	if (fn == 0 || strcmp(fn, "-") == 0) return 0;
+	fd = open(fn, O_RDONLY);
+	if (fd < 0) {
+		fprintf(stderr, "[E::%s] cannot open '%s': %s\n", __func__, fn, strerror(errno));
+		return 0;
+	}
+	if (fstat(fd, &buf) < 0) {
+		fprintf(stderr, "[E::%s] cannot stat '%s': %s\n", __func__, fn, strerror(errno));
+		close(fd);
+		return 0;
+	}
+	st_size = buf.st_size;
+	if ((size_t)st_size < sizeof(mb_bwt_hdr_t)) {
+		close(fd);
+		return 0;
+	}
+	if (vmtouch(fn, false) != 100)
+		vmtouch(fn, true);
+	m = mmap(0, (size_t)st_size, PROT_READ, MAP_PRIVATE, fd, 0);
+	close(fd);
+	if (m == MAP_FAILED) {
+		fprintf(stderr, "[E::%s] failed to mmap '%s': %s\n", __func__, fn, strerror(errno));
+		return 0;
+	}
+	const mb_bwt_hdr_t *h = (const mb_bwt_hdr_t *)m;
+	if (strncmp(h->magic, MB_MAGIC, 4) != 0) {
+		munmap(m, (size_t)st_size);
+		return 0;
+	}
+	bwt = mb_bwt_init();
+	bwt->_mmap_base = m;
+	bwt->_mmap_size = (size_t)st_size;
+	bwt->sa_bit = h->sa_bit;
+	bwt->primary = h->primary;
+	bwt->L2[1] = h->L2_1;
+	bwt->L2[2] = h->L2_2;
+	bwt->L2[3] = h->L2_3;
+	bwt->L2[4] = h->L2_4;
+	bwt->seq_len = bwt->L2[4];
+	bwt->data_len = mb_bwt_data_len(bwt->seq_len);
+	// data lives inside the mmap region; mb_bwt_destroy() will munmap the whole region
+	p = (const char *)(h + 1); // advance past the header
+	bwt->data = (uint64_t *)p; p += (bwt->data_len << 3);
+	bwt->n_sa = *(const uint64_t *)p; p += 8;
+	if (bwt->sa_bit != (uint32_t)-1 && bwt->n_sa > 0)
+		bwt->sa = (uint64_t *)p;
 	return bwt;
 }

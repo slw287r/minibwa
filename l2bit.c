@@ -1,9 +1,12 @@
-#include <zlib.h>
 #include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+#include <errno.h>
 #include <assert.h>
 #include "kommon.h"
 #include "l2bit.h"
 #include "kseq.h"
+#include "vmtch.h"
 KSEQ_INIT(gzFile, gzread)
 
 static int64_t l2b_pos2cid(const l2b_t *l2b, int64_t s, int64_t len, int64_t *cst)
@@ -230,8 +233,15 @@ l2b_t *l2b_import(const char *fn, uint64_t seed)
 
 void l2b_destroy(l2b_t *l2b)
 {
-	free(l2b->cat_name); free(l2b->cat_comm);
-	free(l2b->pac); free(l2b->ambi); free(l2b->mask); free(l2b->ctg); free(l2b);
+	if (l2b == 0) return;
+	if (l2b->_mmap_base) {
+		munmap(l2b->_mmap_base, l2b->_mmap_size);
+		free(l2b->ctg);
+	} else {
+		free(l2b->cat_name); free(l2b->cat_comm);
+		free(l2b->pac); free(l2b->ambi); free(l2b->mask); free(l2b->ctg);
+	}
+	free(l2b);
 }
 
 int l2b_save(const char *fn, const l2b_t *l2b)
@@ -319,6 +329,93 @@ l2b_t *l2b_load(const char *fn)
 	return l2b;
 load_failure:
 	if (fp != stdin) fclose(fp);
+	l2b_destroy(l2b);
+	return 0;
+}
+
+typedef struct {
+	char magic[4];
+	uint32_t dummy;
+	uint64_t n_ctg, tot_len, n_ambi, n_mask, len_name, len_comm, n_pac;
+} l2b_hdr_t;
+typedef char l2b_hdr_size_check[sizeof(l2b_hdr_t) == 64 ? 1 : -1];
+
+l2b_t *l2b_load_mmap(const char *fn)
+{
+	char *p_name, *p_comm;
+	uint64_t off, i, len_name, len_comm;
+	l2b_t *l2b;
+	int fd;
+	struct stat buf;
+	off_t st_size;
+	void *m;
+	const char *p;
+
+	if (fn == 0 || strcmp(fn, "-") == 0) return 0;
+	fd = open(fn, O_RDONLY);
+	if (fd < 0) {
+		fprintf(stderr, "[E::%s] cannot open '%s': %s\n", __func__, fn, strerror(errno));
+		return 0;
+	}
+	if (fstat(fd, &buf) < 0) {
+		fprintf(stderr, "[E::%s] cannot stat '%s': %s\n", __func__, fn, strerror(errno));
+		close(fd);
+		return 0;
+	}
+	st_size = buf.st_size;
+	if ((size_t)st_size < sizeof(l2b_hdr_t)) {
+		close(fd);
+		return 0;
+	}
+	if (vmtouch(fn, false) != 100)
+		vmtouch(fn, true);
+	m = mmap(0, (size_t)st_size, PROT_READ, MAP_PRIVATE, fd, 0);
+	close(fd);
+	if (m == MAP_FAILED) {
+		fprintf(stderr, "[E::%s] failed to mmap '%s': %s\n", __func__, fn, strerror(errno));
+		return 0;
+	}
+	// Read the fixed-size header directly from the mapping
+	const l2b_hdr_t *h = (const l2b_hdr_t *)m;
+	if (strncmp(h->magic, L2B_MAGIC, 4) != 0) {
+		munmap(m, (size_t)st_size);
+		return 0;
+	}
+	l2b = kom_calloc(l2b_t, 1);
+	l2b->_mmap_base = m;
+	l2b->_mmap_size = (size_t)st_size;
+	l2b->n_ctg = h->n_ctg;
+	l2b->tot_len = h->tot_len;
+	l2b->n_ambi = h->n_ambi;
+	l2b->n_mask = h->n_mask;
+	l2b->n_pac = h->n_pac;
+	len_name = h->len_name;
+	len_comm = h->len_comm;
+	p = (const char *)(h + 1); // advance past the header
+	l2b->ctg = kom_calloc(l2b_ctg_t, l2b->n_ctg);
+	for (i = 0, off = 0; i < l2b->n_ctg; ++i) { // read contig lengths
+		l2b->ctg[i].len = ((const uint64_t *)p)[i];
+		l2b->ctg[i].off = off;
+		off += l2b->ctg[i].len;
+	}
+	p += 8 * l2b->n_ctg;
+	if (off != l2b->tot_len) goto load_failure;
+	l2b->ambi = (l2b_intv_t *)p; p += 16 * l2b->n_ambi;
+	l2b->mask = (l2b_intv_t *)p; p += 16 * l2b->n_mask;
+	l2b->pac = (uint64_t *)p; p += 8 * l2b->n_pac;
+	l2b->cat_name = (char *)p; p += len_name;
+	l2b->cat_comm = (char *)p; p += len_comm;
+	p_name = l2b->cat_name, p_comm = l2b->cat_comm;
+	for (i = 0; i < l2b->n_ctg; ++i) { // synchronize contig names and comments
+		l2b_ctg_t *ctg = &l2b->ctg[i];
+		ctg->name = p_name;
+		p_name += strlen(p_name) + 1;
+		ctg->comm = *p_comm? p_comm : 0;
+		p_comm += *p_comm? strlen(p_comm) + 1 : 1;
+	}
+	if (p_name - l2b->cat_name != len_name || p_comm - l2b->cat_comm != len_comm) goto load_failure;
+	return l2b;
+load_failure:
 	l2b_destroy(l2b);
 	return 0;
 }

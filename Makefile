@@ -4,11 +4,11 @@ CPPFLAGS=
 LDFLAGS=
 INCLUDES=
 LOBJS=		kommon.o kalloc.o bwt.o l2bit.o options.o seed.o map-algo.o lchain.o align.o pe.o cs.o format.o \
-			ksw2_extz2_sse.o ksw2_extd2_sse.o ksw2_ll_sse.o
+			ksw2_extz2_sse.o ksw2_extd2_sse.o ksw2_ll_sse.o izlib.o vmtch.o
 AOBJS=		kthread.o libsais.o libsais64.o index.o bseq.o map-main.o fastmap.o
 MALLOC_O=	mimalloc.o
 PROG=		minibwa
-LIBS=		-lpthread -lz -lm
+LIBS=		-lpthread -lisal -lm
 ARCH=		$(shell uname -m)
 omp=		$(shell printf '\043include <omp.h>\nint main(){return 0;}' | $(CC) -x c -fopenmp -o /dev/null - 2>/dev/null && echo "1" || echo "0")
 

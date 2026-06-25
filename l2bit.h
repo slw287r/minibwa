@@ -2,6 +2,10 @@
 #define L2BIT_H
 
 #include <stdint.h>
+#include <fcntl.h>
+#include <sys/stat.h>
+#include <sys/mman.h>
+#include "izlib.h"
 
 #define L2B_MAGIC "L2B\1"
 
@@ -26,6 +30,8 @@ typedef struct {
 	l2b_intv_t *ambi, *mask;
 	uint64_t *pac;
 	char *cat_name, *cat_comm;
+	void *_mmap_base;
+	size_t _mmap_size;
 } l2b_t;
 
 #ifdef __cplusplus
@@ -33,6 +39,7 @@ extern "C" {
 #endif
 
 l2b_t *l2b_load(const char *fn);
+l2b_t *l2b_load_mmap(const char *fn);
 void l2b_destroy(l2b_t *l2b);
 int64_t l2b_intv2cid(const l2b_t *l2b, uint64_t st, uint64_t en, int64_t *cst, int *rev);
 int64_t l2b_intv2cid_meth(const l2b_t *l2b, uint64_t st, uint64_t en, l2b_meth_t *mt, int64_t *cst, int *rev);

@@ -16,7 +16,7 @@ KRADIX_SORT_INIT(mb64, uint64_t, key_64, 8)
  * Index loading *
  *****************/
 
-mb_idx_t *mb_idx_load(const char *prefix, int32_t is_meth)
+mb_idx_t *mb_idx_load(const char *prefix, int32_t is_meth, int32_t use_mmap)
 {
 	char *buf;
 	mb_idx_t *idx = 0;
@@ -24,11 +24,11 @@ mb_idx_t *mb_idx_load(const char *prefix, int32_t is_meth)
 	mb_bwt_t *bwt;
 	buf = kom_calloc(char, strlen(prefix) + 10);
 	strcat(strcpy(buf, prefix), ".l2b");
-	l2b = l2b_load(buf);
+	l2b = use_mmap ? l2b_load_mmap(buf) : l2b_load(buf);
 	if (l2b == 0) goto end_idx_load;
 	if (is_meth) strcat(strcpy(buf, prefix), ".meth.mbw");
 	else strcat(strcpy(buf, prefix), ".mbw");
-	bwt = mb_bwt_load(buf);
+	bwt = use_mmap ? mb_bwt_load_mmap(buf) : mb_bwt_load(buf);
 	if (bwt == 0) {
 		l2b_destroy(l2b);
 		goto end_idx_load;

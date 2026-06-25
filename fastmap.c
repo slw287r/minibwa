@@ -1,4 +1,3 @@
-#include <zlib.h>
 #include <stdio.h>
 #include "mbpriv.h"
 #include "ketopt.h"
@@ -78,6 +77,7 @@ static int usage_fastmap(FILE *fp, int min_len, int min_occ, int max_size_out, i
 	fprintf(fp, "  -s INT     min interval size [%d]\n", min_occ);
 	fprintf(fp, "  -w INT     max interval size to output coordinates [%d]\n", max_size_out);
 	fprintf(fp, "  -b INT     batch size [%d]\n", max_seq);
+	fprintf(fp, "  -z         use mmap to load reference index\n");
 	fprintf(fp, "  --help     print this help message\n");
 	return fp == stdout? 0 : 1;
 }
@@ -90,6 +90,7 @@ int main_fastmap(int argc, char *argv[])
 	gzFile fp;
 	kseq_t *ks;
 	int c, min_len = 19, min_occ = 1, max_size_out = 20, max_seq = 1;
+	int use_mmap = 0;
 	uint64_t *sa, m_a = 0;
 	mb_sai_t *a = 0;
 	kstring_t out = {0};
@@ -100,17 +101,18 @@ int main_fastmap(int argc, char *argv[])
 		{ 0, 0, 0 }
 	};
 
-	while ((c = ketopt(&o, argc, argv, 1, "l:s:w:b:", long_opts)) >= 0) {
+	while ((c = ketopt(&o, argc, argv, 1, "l:s:w:b:z", long_opts)) >= 0) {
 		if (c == 'l') min_len = atoi(o.arg);
 		else if (c == 's') min_occ = atoi(o.arg);
 		else if (c == 'w') max_size_out = atoi(o.arg);
 		else if (c == 'b') max_seq = atoi(o.arg);
+		else if (c == 'z') use_mmap = 1;
 		else if (c == 901) return usage_fastmap(stdout, min_len, min_occ, max_size_out, max_seq);
 	}
 
 	if (argc - o.ind < 2) return usage_fastmap(stderr, min_len, min_occ, max_size_out, max_seq);
 
-	idx = mb_idx_load(argv[o.ind], 0);
+	idx = mb_idx_load(argv[o.ind], 0, use_mmap);
 	bwt = idx->bwt;
 	kom_assert(bwt, "failed to open the BWT file.");
 	fp = strcmp(argv[o.ind+1], "-")? gzopen(argv[o.ind+1], "rb") : gzdopen(0, "rb");

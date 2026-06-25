@@ -4,6 +4,7 @@
 #include <stdint.h>
 #include <string.h>
 #include "kommon.h"
+#include "izlib.h"
 
 #ifdef __cplusplus
 extern "C" {

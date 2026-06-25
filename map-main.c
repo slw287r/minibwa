@@ -2,7 +2,6 @@
 #include <assert.h>
 #include <stdlib.h>
 #include <errno.h>
-#include <zlib.h>
 #include "kommon.h"
 #include "mbpriv.h"
 #include "bseq.h"
@@ -380,11 +379,13 @@ static int usage(FILE *fp, const mb_opt_t *opt)
 	fprintf(fp, "    -o FILE          output file name [stdout]\n");
 	fprintf(fp, "    -u               don't output unmapped reads\n");
 	fprintf(fp, "    --outn=INT       output up to INT secondary alignments [0]\n");
+	fprintf(fp, "    -h INT           if there are <=INT hits with score >80%% of the max score, output all in XA [5]\n");
 	fprintf(fp, "    -y               copy FASTA/Q comments to output\n");
 	fprintf(fp, "    -Y               use soft clipping for supplementary alignments\n");
 	fprintf(fp, "    -H STR           if STR starts with @, insert to header; or insert lines in file STR []\n");
 	fprintf(fp, "    -5               take the alignment with the smallest query position as primary\n");
 	fprintf(fp, "    -K NUM1[,NUM2]   process NUM1-NUM2 bp of query sequences in a batch [100m,1g]\n");
+	fprintf(fp, "    -z               use mmap to load reference index\n");
 	fprintf(fp, "    --version        print version number\n");
 	fprintf(fp, "    --help           print this help message\n");
 	return fp == stdout? 0 : 1;
@@ -405,7 +406,7 @@ static inline void yes_or_no(mb_opt_t *opt, uint64_t flag, int long_idx, const c
 
 int main_map(int argc, char *argv[])
 {
-	const char *opt_str = "x:o:k:c:m:p:A:B:U:b:O:E:t:K:N:PyYR:H:aul:w:W:g:5s:f";
+	const char *opt_str = "x:o:k:c:m:p:A:B:U:b:O:E:t:K:N:PyYR:H:auh:l:w:W:g:5s:fz";
 	int32_t c;
 	mb_idx_t *idx;
 	mb_opt_t mo;
@@ -449,6 +450,8 @@ int main_map(int argc, char *argv[])
 		else if (c == 'Y') mo.flag |= MB_F_SUPP_SOFT;
 		else if (c == '5') mo.flag |= MB_F_PRIMARY5;
 		else if (c == 'P') mo.flag |= MB_F_NO_PAIRING;
+		else if (c == 'z') mo.flag |= MB_F_MMAP;
+		else if (c == 'h') mo.xa_max = atoi(o.arg);
 		else if (c == 's') mo.min_dp_max = atoi(o.arg);
 		else if (c == 'o') fn_out = o.arg;
 		else if (c == 't') mo.n_thread = atoi(o.arg);
@@ -519,7 +522,7 @@ int main_map(int argc, char *argv[])
 	if (argc - o.ind < 2)
 		return usage(stderr, &mo);
 
-	idx = mb_idx_load(argv[o.ind], !!(mo.flag & MB_F_METH));
+	idx = mb_idx_load(argv[o.ind], !!(mo.flag & MB_F_METH), !!(mo.flag & MB_F_MMAP));
 	kom_assert(idx, "failed to load the index.");
 	if (kom_verbose >= 3)
 		fprintf(stderr, "[M::%s::%.3f*%.2f] index loaded\n", __func__, kom_realtime(), kom_percent_cpu());

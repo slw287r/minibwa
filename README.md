@@ -2,6 +2,13 @@
 [![Homebrew](https://img.shields.io/homebrew/v/minibwa)](https://formulae.brew.sh/formula/minibwa)
 [![preprint](https://img.shields.io/badge/arXiv-2606.15357-blue)](https://arxiv.org/abs/2606.15357)
 
+> [!NOTE]
+>
+> This branch features:
+> * make use of `mmap` to load reference index via `-z` to share index memory across processes.
+> * Uses isa-l to accelerate decompression of gzip files.
+> * Specify maximum of XAs to output via `-h` which is hard coded as 5.
+
 ## Getting Started
 ```sh
 git clone https://github.com/lh3/minibwa
