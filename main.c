@@ -28,8 +28,8 @@ static int usage(FILE *fp, int is_long)
 	if (is_long) {
 		fprintf(fp, "  General:\n");
 		fprintf(fp, "    index      index reference FASTA\n");
-		fprintf(fp, "    map        read alignment (recommended over mem)\n");
-		fprintf(fp, "    mem        bwa-mem compatible CLI\n");
+		fprintf(fp, "    map        read alignment\n");
+		fprintf(fp, "    mem        legacy bwa-mem CLI (not recommended)\n");
 		fprintf(fp, "    version    print the version number\n");
 		fprintf(fp, "  Separate indexing routines:\n");
 		fprintf(fp, "    fa2bit     convert FASTA to the long-2bit format\n");
@@ -45,8 +45,8 @@ static int usage(FILE *fp, int is_long)
 		fprintf(fp, "    --help     print this help message\n");
 	} else {
 		fprintf(fp, "  index      index reference FASTA\n");
-		fprintf(fp, "  map        read alignment (recommended over mem)\n");
-		fprintf(fp, "  mem        bwa-mem compatible CLI\n");
+		fprintf(fp, "  map        read alignment\n");
+		fprintf(fp, "  mem        legacy bwa-mem CLI (not recommended)\n");
 		fprintf(fp, "  version    print the version number\n");
 	}
 	return fp == stdout? 0 : 1;
