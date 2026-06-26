@@ -221,29 +221,40 @@ int gzread(gzFile fp, void *buf, size_t len)
 			buf_data_len = fread((uint8_t *)buf, 1, len, fp->fp);
 		return buf_data_len;
 	}
-	do // Start reading in compressed data and decompress
+	// Outer loop: walk across concatenated gzip blocks (BGZF) until the caller's
+	// buffer is full, the underlying stream ends, or an error is hit. Returning
+	// early whenever isal_inflate produced any bytes (the previous behaviour)
+	// causes short reads whenever a block boundary falls inside the caller's
+	// buffer -- e.g. kseq's ks_getc treats `ks->end < ks->bufsize` as EOF and
+	// stops calling gzread, so a single-block igzip file with a multi-block
+	// BGZF equivalent gets truncated after the first block.
+	while (1)
 	{
+		do
+		{
+			if (!feof(fp->fp) && !fp->state->avail_in)
+			{
+				fp->state->next_in = fp->buf_in;
+				fp->state->avail_in = fread(fp->state->next_in, 1, fp->buf_in_size, fp->fp);
+			}
+			fp->state->next_out = (uint8_t *)buf + buf_data_len;
+			fp->state->avail_out = len - buf_data_len;
+			if (isal_inflate(fp->state) != ISAL_DECOMP_OK)
+				return -3;
+			buf_data_len = fp->state->next_out - (uint8_t *)buf;
+			if (buf_data_len >= (int)len)
+				return buf_data_len;
+		} while (fp->state->block_state != ISAL_BLOCK_FINISH // while not done
+			&& (!feof(fp->fp) || fp->state->avail_out)); // and work to do
+		// Current gzip block is finished. Look for a concatenated gzip header
+		// (BGZF, or any concatenated gzip stream).
 		if (!feof(fp->fp) && !fp->state->avail_in)
 		{
 			fp->state->next_in = fp->buf_in;
 			fp->state->avail_in = fread(fp->state->next_in, 1, fp->buf_in_size, fp->fp);
 		}
-		fp->state->next_out = (uint8_t *)buf;
-		fp->state->avail_out = len;
-		if (isal_inflate(fp->state) != ISAL_DECOMP_OK)
-			return -3;
-		if ((buf_data_len = fp->state->next_out - (uint8_t *)buf))
-			return buf_data_len;
-	} while (fp->state->block_state != ISAL_BLOCK_FINISH // while not done
-		&& (!feof(fp->fp) || !fp->state->avail_out)); // and work to do
-	// Add the following to look for and decode additional concatenated files
-	if (!feof(fp->fp) && !fp->state->avail_in)
-	{
-		fp->state->next_in = fp->buf_in;
-		fp->state->avail_in = fread(fp->state->next_in, 1, fp->buf_in_size, fp->fp);
-	}
-	while (fp->state->avail_in && fp->state->next_in[0] == 31) // 0x1f
-	{
+		if (!fp->state->avail_in || fp->state->next_in[0] != 31) // 0x1f
+			break;
 		// Look for magic numbers for gzip header. Follows the gzread() decision
 		// whether to treat as trailing junk
 		if (fp->state->avail_in > 1 && fp->state->next_in[1] != 139) // 0x8b
@@ -253,21 +264,6 @@ int gzread(gzFile fp, void *buf, size_t len)
 		fp->state->crc_flag = ISAL_GZIP_NO_HDR_VER;
 		if (ingest_gzip_header(fp) != ISAL_DECOMP_OK)
 			return -3; // fail to parse header
-		do
-		{
-			if (!feof(fp->fp) && !fp->state->avail_in)
-			{
-				fp->state->next_in = fp->buf_in;
-				fp->state->avail_in = fread(fp->state->next_in, 1, fp->buf_in_size, fp->fp);
-			}
-			fp->state->next_out = (uint8_t *)buf;
-			fp->state->avail_out = len;
-			if (isal_inflate(fp->state) != ISAL_DECOMP_OK)
-				return -3;
-			if ((buf_data_len = fp->state->next_out - (uint8_t *)buf))
-				return buf_data_len;
-		} while (fp->state->block_state != ISAL_BLOCK_FINISH
-				&& (!feof(fp->fp) || !fp->state->avail_out));
 	}
 	return buf_data_len;
 }
