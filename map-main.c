@@ -644,7 +644,7 @@ int main_mem(int argc, char *argv[])
 	}
 	if (argc - o.ind < 2) return usage_mem(stderr, &mo);
 
-	idx = mb_idx_load(argv[o.ind], !!(mo.flag & MB_F_METH));
+	idx = mb_idx_load(argv[o.ind], !!(mo.flag & MB_F_METH), !!(mo.flag & MB_F_MMAP));
 	kom_assert(idx, "failed to load the index.");
 	if (kom_verbose >= 3)
 		fprintf(stderr, "[M::%s::%.3f*%.2f] index loaded\n", __func__, kom_realtime(), kom_percent_cpu());
