@@ -263,7 +263,7 @@ static mb_bseq_file_t **mb_open_bseqs(int n, const char **fn)
 	return fp;
 }
 
-int32_t mb_map_file(const mb_opt_t *opt, const mb_idx_t *idx, int32_t n, const char **fn, const char *fn_out)
+int32_t mb_map_file(const mb_opt_t *opt, const mb_idx_t *idx, int32_t n, const char **fn, const char *hdr, const char *fn_out)
 {
 	int32_t i, pl_thread;
 	pipeline_t pl;
@@ -271,6 +271,7 @@ int32_t mb_map_file(const mb_opt_t *opt, const mb_idx_t *idx, int32_t n, const c
 	memset(&pl, 0, sizeof(pipeline_t));
 	pl.fp_out = fn_out == 0 || strcmp(fn_out, "-") == 0? stdout : fopen(fn_out, "wb");
 	if (pl.fp_out == 0) return -1;
+	if (hdr) fputs(hdr, pl.fp_out);
 	pl.n_fp = n;
 	pl.fp = mb_open_bseqs(pl.n_fp, fn);
 	if (pl.fp == 0) return -1;
@@ -343,7 +344,7 @@ static ko_longopt_t long_options[] = {
 	{ 0, 0, 0 }
 };
 
-static int usage(FILE *fp, const mb_opt_t *opt)
+static int usage_map(FILE *fp, const mb_opt_t *opt)
 {
 	fprintf(fp, "Usage: minibwa map [options] <in.idx> <in.fastq>\n");
 	fprintf(fp, "Options:\n");
@@ -412,7 +413,7 @@ int main_map(int argc, char *argv[])
 	mb_opt_t mo;
 	char *fn_out = 0, *rg_line = 0, *s;
 	ketopt_t o = KETOPT_INIT;
-	kstring_t str_hdr = {0,0,0};
+	kstring_t hdr_ins = {0,0,0}, hdr = {0,0,0};
 
 	mb_opt_init(&mo);
 	while ((c = ketopt(&o, argc, argv, 1, opt_str, long_options)) >= 0) { // test command line options and apply option -x/preset first
@@ -456,7 +457,7 @@ int main_map(int argc, char *argv[])
 		else if (c == 'o') fn_out = o.arg;
 		else if (c == 't') mo.n_thread = atoi(o.arg);
 		else if (c == 'R') rg_line = o.arg;
-		else if (c == 'H') mb_insert_hdr(&str_hdr, o.arg);
+		else if (c == 'H') mb_insert_hdr(&hdr_ins, o.arg);
 		else if (c == 301) { // --kalloc
 			yes_or_no(&mo, MB_F_NO_KALLOC, o.longidx, o.arg, 0);
 		} else if (c == 302) { // --outn
@@ -516,11 +517,11 @@ int main_map(int argc, char *argv[])
 			puts(MB_VERSION);
 			exit(0);
 		} else if (c == 902) { // --help
-			return usage(stdout, &mo);
+			return usage_map(stdout, &mo);
 		}
 	}
 	if (argc - o.ind < 2)
-		return usage(stderr, &mo);
+		return usage_map(stderr, &mo);
 
 	idx = mb_idx_load(argv[o.ind], !!(mo.flag & MB_F_METH), !!(mo.flag & MB_F_MMAP));
 	kom_assert(idx, "failed to load the index.");
@@ -529,16 +530,131 @@ int main_map(int argc, char *argv[])
 
 	if (!(mo.flag & MB_F_PAF)) {
 		int ret;
-		kstring_t out = {0,0,0};
-		ret = mb_fmt_sam_hdr(&out, idx->l2b, rg_line, MB_VERSION, argc, argv);
+		ret = mb_fmt_sam_hdr(&hdr, idx->l2b, rg_line, MB_VERSION, argc, argv);
 		if (ret < 0) return 1; // TODO: free idx and out.s
-		if (str_hdr.l > 0) kom_sprintf_lite(&out, "%s", str_hdr.s);
-		fwrite(out.s, 1, out.l, stdout);
-		free(out.s);
+		if (hdr_ins.l > 0) kom_sprintf_lite(&hdr, "%s", hdr_ins.s);
 	}
-	if (str_hdr.s) free(str_hdr.s);
+	if (hdr_ins.s) free(hdr_ins.s);
 
-	mb_map_file(&mo, idx, argc - (o.ind + 1), (const char**)&argv[o.ind+1], fn_out);
+	mb_map_file(&mo, idx, argc - (o.ind + 1), (const char**)&argv[o.ind+1], hdr.s, fn_out);
+	free(hdr.s);
+	mb_idx_destroy(idx);
+	return 0;
+}
+
+static int usage_mem(FILE *fp, const mb_opt_t *opt)
+{
+	fprintf(fp, "Usage: minibwa mem [options] <in.idx> <in.fastq>\n");
+	fprintf(fp, "Options:\n");
+	fprintf(fp, "  Algorithm:\n");
+	fprintf(fp, "    -t INT         number of threads [%d]\n", opt->n_thread);
+	fprintf(fp, "    -k INT         minimum seed length [%d]\n", opt->min_len);
+	fprintf(fp, "    -w NUM         bandwidth [%d]\n", opt->bw);
+	fprintf(fp, "    *r FLOAT       inside seed ratio []\n");
+	fprintf(fp, "    *y INT         seed occurrence for the 3rd round seeding []\n");
+	fprintf(fp, "    -c NUM         max seed occurrences [%d]\n", opt->max_occ);
+	fprintf(fp, "    -D FLOAT       mask level [%g]\n", opt->mask_level);
+	fprintf(fp, "    -W INT         min chaining score [%d]\n", opt->min_chain_score);
+	fprintf(fp, "    -m INT         mate rescue for up to INT candidates; 0 to skip rescue [%d]\n", opt->max_rescue);
+	fprintf(fp, "    -S             skip mate rescue\n");
+	fprintf(fp, "    -P             skip pairing\n");
+	fprintf(fp, "  Scoring:\n");
+	fprintf(fp, "    *A INT         matching score []\n");
+	fprintf(fp, "    *B INT         mismatching penalty []\n");
+	fprintf(fp, "    *O INT         gap open penalty []\n");
+	fprintf(fp, "    *E INT         gap extension penalty []\n");
+	fprintf(fp, "    *L INT         end bonus []\n");
+	fprintf(fp, "    *U INT         penalty for an unpaired read pair []\n");
+	fprintf(fp, "    *d INT         off-diagonal X-dropoff []\n");
+	fprintf(fp, "    *x STR         preset []\n");
+	fprintf(fp, "  Input/output:\n");
+	fprintf(fp, "    *p             smart pairing\n");
+	fprintf(fp, "    -R STR         SAM read group line in a format like '@RG\\tID:foo\\tSM:bar' []\n");
+	fprintf(fp, "    -H STR         if STR starts with @, insert to header; or insert lines in file STR []\n");
+	fprintf(fp, "    -o FILE        output file name [stdout]\n");
+	fprintf(fp, "    *j             treat ALT contigs as part of the primary assembly\n");
+	fprintf(fp, "    -5             take the alignment with the smallest query position as primary\n");
+	fprintf(fp, "    *q             don't modify mapQ of supplementary alignments\n");
+	fprintf(fp, "    *K NUM         batch size []\n");
+	fprintf(fp, "    -v INT         verbose level: 1=error, 2=warning, 3=message, 4+=debugging [%d]\n", kom_verbose);
+	fprintf(fp, "    -T INT         suppress alignment with DP score lower than INT*{-A} [%d]\n", opt->min_dp_max);
+	fprintf(fp, "    -h INT         max secondary alignments at the XA tag [%d]\n", opt->xa_max);
+	fprintf(fp, "    -z FLOAT       ignore in XA is score < FLOAT*bestScore [%g]\n", opt->xa_ratio);
+	fprintf(fp, "    -a             output all alignments\n");
+	fprintf(fp, "    -C             copy FASTA/Q comments to output\n");
+	fprintf(fp, "    *V             output the reference FASTA header in the XR tag\n");
+	fprintf(fp, "    -Y             use soft clipping for supplementary alignments\n");
+	fprintf(fp, "    *M             mark shorter split hits as secondary\n");
+	fprintf(fp, "    -I FLOAT[,FLOAT[,INT[,INT]]]\n");
+	fprintf(fp, "                   mean, stddev, max and min of isize distribution [inferred]\n");
+	fprintf(fp, "    *u             output XB instead of XA\n");
+	fprintf(fp, "Notes:\n");
+	fprintf(fp, "  - \"minibwa mem\" aims to match the \"bwa mem\" command-line interface\n");
+	fprintf(fp, "  - '*' options are ignored as they are missing or incompatible with minibwa\n");
+	fprintf(fp, "  - minibwa and bwa-mem may output different alignments\n");
+	return fp == stdout? 0 : 1;
+}
+
+int main_mem(int argc, char *argv[])
+{
+	int32_t c, ret;
+	ketopt_t o = KETOPT_INIT;
+	mb_opt_t mo;
+	char *fn_out = 0, *rg_line = 0;
+	kstring_t hdr_ins = {0,0,0}, hdr = {0,0,0};
+	mb_idx_t *idx;
+
+	mb_opt_init(&mo);
+	mo.flag |= MB_F_WRITE_MD; // bwa-mem always writes MD
+	while ((c = ketopt(&o, argc, argv, 1, "t:k:w:d:r:y:c:D:W:m:SPA:B:O:E:L:U:x:pR:H:o:j5qK:v:T:h:z:aCVYMuI:", 0)) >= 0) {
+		// algorithm
+		if (c == 't') mo.n_thread = atoi(o.arg);
+		else if (c == 'k') mo.min_len = atoi(o.arg);
+		else if (c == 'w') mo.bw = kom_parse_num(o.arg, 0);
+		else if (c == 'r' || c == 'y') {}
+		else if (c == 'W') mo.min_chain_score = atoi(o.arg);
+		else if (c == 'c') mo.max_occ = kom_parse_num(o.arg, 0);
+		else if (c == 'D') mo.mask_level = atof(o.arg);
+		else if (c == 'm') mo.max_rescue = atoi(o.arg);
+		else if (c == 'S') mo.max_rescue = 0;
+		else if (c == 'P') mo.flag |= MB_F_NO_PAIRING;
+		// scoring
+		else if (c == 'A' || c == 'B' || c == 'O' || c == 'E' || c == 'L' || c == 'U' || c == 'd' || c == 'x') {}
+		// input/output
+		else if (c == 'p' || c == 'j' || c == 'q' || c == 'K' || c == 'V' || c == 'M' || c == 'u') {}
+		else if (c == 'a') mo.out_n = 1000000;
+		else if (c == 'h') mo.xa_max = atoi(o.arg);
+		else if (c == 'z') mo.xa_ratio = atof(o.arg);
+		else if (c == 'R') rg_line = o.arg;
+		else if (c == 'H') mb_insert_hdr(&hdr_ins, o.arg);
+		else if (c == 'o') fn_out = o.arg;
+		else if (c == '5') mo.flag |= MB_F_PRIMARY5;
+		else if (c == 'v') kom_verbose = atoi(o.arg);
+		else if (c == 'T') mo.min_dp_max = atoi(o.arg);
+		else if (c == 'C') mo.flag |= MB_F_COPY_COMMENT;
+		else if (c == 'Y') mo.flag |= MB_F_SUPP_SOFT;
+		else if (c == 'I') {
+			char *q;
+			mo.pe_avg = strtod(o.arg, &q);
+			mo.pe_std = (int32_t)(.499 + (*q == ','? strtod(q + 1, &q) : mo.pe_avg * 0.1));
+			mo.pe_hi = *q == ','? strtol(q + 1, &q, 10) : mo.pe_avg + mo.pe_std * 4;
+			mo.pe_lo = *q == ','? strtol(q + 1, &q, 10) : mo.pe_avg - mo.pe_std * 4;
+			if (mo.pe_lo < 1) mo.pe_lo = 1;
+		}
+	}
+	if (argc - o.ind < 2) return usage_mem(stderr, &mo);
+
+	idx = mb_idx_load(argv[o.ind], !!(mo.flag & MB_F_METH));
+	kom_assert(idx, "failed to load the index.");
+	if (kom_verbose >= 3)
+		fprintf(stderr, "[M::%s::%.3f*%.2f] index loaded\n", __func__, kom_realtime(), kom_percent_cpu());
+
+	ret = mb_fmt_sam_hdr(&hdr, idx->l2b, rg_line, MB_VERSION, argc, argv);
+	if (ret < 0) return 1; // TODO: free idx and out.s
+	if (hdr_ins.l > 0) kom_sprintf_lite(&hdr, "%s", hdr_ins.s);
+	if (hdr_ins.s) free(hdr_ins.s);
+	mb_map_file(&mo, idx, argc - (o.ind + 1), (const char**)&argv[o.ind+1], hdr.s, fn_out);
+	free(hdr.s);
 	mb_idx_destroy(idx);
 	return 0;
 }
