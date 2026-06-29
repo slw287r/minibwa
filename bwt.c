@@ -4,10 +4,13 @@
 #include <assert.h>
 #include <stdint.h>
 #include <errno.h>
+#include <inttypes.h>
 #include "vmtch.h"
 #include "kommon.h"
 #include "kalloc.h"
 #include "bwt.h"
+
+#define MB_PATH_MAX 4096
 
 /********************
  * Basic operations *
@@ -36,10 +39,14 @@ mb_bwt_t *mb_bwt_init(void)
 void mb_bwt_destroy(mb_bwt_t *bwt)
 {
 	if (bwt == 0) return;
+	if (bwt->_sa_mmap_size > 0 && bwt->sa)
+		munmap(bwt->sa, bwt->_sa_mmap_size);
 	if (bwt->_mmap_base)
 		munmap(bwt->_mmap_base, bwt->_mmap_size);
 	else {
-		free(bwt->pre); free(bwt->sa); free(bwt->data);
+		free(bwt->pre);
+		if (bwt->_sa_mmap_size == 0) free(bwt->sa);
+		free(bwt->data);
 	}
 	free(bwt);
 }
@@ -472,15 +479,166 @@ static inline uint64_t bwt_invPsi(const mb_bwt_t *bwt, uint64_t k) // compute in
 	return k == bwt->primary? 0 : x;
 }
 
-// bwt->bwt and bwt->occ must be precalculated
-void mb_bwt_gen_sa(mb_bwt_t *bwt, uint32_t sa_bit)
+/*****************
+ * Shm SA cache  *
+ *****************/
+
+// /dev/shm on Linux when available and writable; /tmp elsewhere (and on
+// macOS, where /dev/shm does not exist). Result is cached after the first
+// call.
+static const char *mb_shmdir(void)
+{
+	static char buf[256];
+	static int initialized = 0;
+	if (!initialized) {
+#ifdef __linux__
+		if (access("/dev/shm", W_OK) == 0)
+			strcpy(buf, "/dev/shm");
+		else
+			strcpy(buf, "/tmp");
+#else
+		strcpy(buf, "/tmp");
+#endif
+		initialized = 1;
+	}
+	return buf;
+}
+
+// FNV-1a 64-bit. Used to derive a deterministic, collision-resistant file
+// name from the index prefix.
+static uint64_t mb_fnv1a64(const char *s)
+{
+	uint64_t h = 14695981039346656037ULL; // FNV offset basis
+	for (; *s; ++s) {
+		h ^= (uint8_t)*s;
+		h *= 1099511628211ULL; // FNV prime
+	}
+	return h;
+}
+
+// Compose the shm SA file path for a given index prefix. Different indices
+// (or different paths to the same index) yield different shm files; two
+// minibwa processes pointed at the same prefix share the same physical pages
+// via the kernel page cache.
+static void mb_sa_shm_path(const char *prefix, char *out, size_t out_size)
+{
+	char rp[MB_PATH_MAX];
+	const char *key = prefix;
+	if (realpath(prefix, rp) != NULL) key = rp;
+	snprintf(out, out_size, "%s/minibwa.%016" PRIx64 ".sa",
+			 mb_shmdir(), mb_fnv1a64(key));
+}
+
+// Try to attach an existing shm SA file. On success, sets bwt->sa and
+// bwt->_sa_mmap_size and returns 0; on any failure, returns -1 and leaves
+// bwt untouched. Failure modes: file missing, wrong size, mmap error.
+static int mb_sa_shm_attach(mb_bwt_t *bwt, const char *sa_path)
+{
+	int fd = open(sa_path, O_RDONLY);
+	if (fd < 0) return -1;
+	struct stat st;
+	if (fstat(fd, &st) != 0 || (uint64_t)st.st_size != bwt->n_sa * 8) {
+		close(fd);
+		return -1;
+	}
+	uint64_t bytes = bwt->n_sa * 8;
+	void *p = mmap(NULL, bytes, PROT_READ, MAP_SHARED, fd, 0);
+	close(fd);
+	if (p == MAP_FAILED) return -1;
+	bwt->sa = (uint64_t *)p;
+	bwt->_sa_mmap_size = bytes;
+	madvise(p, bytes, MADV_RANDOM);
+	return 0;
+}
+
+// Try to create and populate the shm SA file. The file is built in a temp
+// "<final>.tmp.<pid>" and atomically renamed into place so a crashed writer
+// never exposes a half-filled file. If another process has already published
+// the file (or is about to), this falls through to attach.
+//
+// Race semantics: two writers can both produce temp files; whichever rename
+// happens last wins. The fill is deterministic given the BWT, so the content
+// is always correct; only the compute is wasted. No flock required.
+static int mb_sa_shm_populate(mb_bwt_t *bwt, const char *sa_path)
+{
+	uint64_t bytes = bwt->n_sa * 8;
+
+	// If the final file is already on disk, attach read-only and return.
+	if (mb_sa_shm_attach(bwt, sa_path) == 0) return 0;
+
+	char tmp[MB_PATH_MAX];
+	snprintf(tmp, sizeof(tmp), "%s.tmp.%d", sa_path, (int)getpid());
+
+	int fd = open(tmp, O_RDWR | O_CREAT | O_EXCL, 0644);
+	if (fd < 0) return -1; // could not become the writer
+
+	if (ftruncate(fd, (off_t)bytes) != 0) {
+		close(fd); unlink(tmp); return -1;
+	}
+	void *p = mmap(NULL, bytes, PROT_READ | PROT_WRITE, MAP_SHARED, fd, 0);
+	if (p == MAP_FAILED) {
+		close(fd); unlink(tmp); return -1;
+	}
+	bwt->sa = (uint64_t *)p;
+	bwt->_sa_mmap_size = bytes;
+
+	// Fill in place. Identical algorithm to the heap path.
+	uint64_t isa = 0, sa = bwt->seq_len, i, mask = (1ULL << bwt->sa_bit) - 1;
+	for (i = 0; i < bwt->seq_len; ++i) {
+		if ((isa & mask) == 0) bwt->sa[isa >> bwt->sa_bit] = sa;
+		--sa;
+		isa = bwt_invPsi(bwt, isa);
+	}
+	if ((isa & mask) == 0) bwt->sa[isa >> bwt->sa_bit] = sa;
+	bwt->sa[0] = (uint64_t)-1;
+
+	// Publish atomically, then drop write permission.
+	msync(p, bytes, MS_SYNC);
+	mprotect(p, bytes, PROT_READ);
+	if (rename(tmp, sa_path) != 0) {
+		munmap(p, bytes);
+		bwt->sa = NULL;
+		bwt->_sa_mmap_size = 0;
+		unlink(tmp);
+		return -1;
+	}
+	madvise(p, bytes, MADV_RANDOM);
+	return 0;
+}
+
+// bwt->bwt and bwt->occ must be precalculated. If sa_shm_path is non-NULL
+// and MINIBWA_NO_SHM is unset, the SA is built in /dev/shm (Linux) or /tmp
+// (macOS) and mmap'd MAP_SHARED so parallel minibwa processes share the
+// same physical pages via the kernel page cache. Pass NULL to fall back to a
+// per-process heap allocation.
+void mb_bwt_gen_sa(mb_bwt_t *bwt, uint32_t sa_bit, const char *sa_shm_path)
 {
 	uint64_t isa, sa, i, mask; // S(isa) = sa
 
 	assert(bwt->data);
-	if (bwt->sa) free(bwt->sa);
+
+	// Release any existing SA. SA inside the .mbw mmap (_mmap_base) is
+	// covered by _mmap_base and must not be free'd or munmap'd here.
+	if (bwt->_sa_mmap_size > 0 && bwt->sa) {
+		munmap(bwt->sa, bwt->_sa_mmap_size);
+	} else if (bwt->sa) {
+		free(bwt->sa);
+	}
+	bwt->sa = NULL;
+	bwt->_sa_mmap_size = 0;
+
 	bwt->sa_bit = sa_bit;
 	bwt->n_sa = (bwt->seq_len + (1<<sa_bit)) >> sa_bit;
+
+	if (sa_shm_path && !getenv("MINIBWA_NO_SHM")) {
+		char shm[MB_PATH_MAX];
+		mb_sa_shm_path(sa_shm_path, shm, sizeof(shm));
+		if (mb_sa_shm_populate(bwt, shm) == 0) return;
+		// Shm path failed for any reason; fall back to heap allocation.
+		if (kom_verbose >= 1)
+			fprintf(stderr, "[W::%s] shm SA cache unavailable, using heap.\n", __func__);
+	}
+
 	bwt->sa = kom_calloc(uint64_t, bwt->n_sa);
 
 	// calculate SA value
@@ -741,7 +899,18 @@ mb_bwt_t *mb_bwt_load_mmap(const char *fn)
 	p = (const char *)(h + 1); // advance past the header
 	bwt->data = (uint64_t *)p; p += (bwt->data_len << 3);
 	bwt->n_sa = *(const uint64_t *)p; p += 8;
-	if (bwt->sa_bit != (uint32_t)-1 && bwt->n_sa > 0)
+	if (bwt->sa_bit != (uint32_t)-1 && bwt->n_sa > 0 && !getenv("MINIBWA_NO_SHM")) {
+		// Try to attach the shm SA cache. If it exists with the right size,
+		// it overrides the inline SA inside the .mbw mmap. The inline copy
+		// remains mapped but unused (same pages in the page cache, so
+		// effectively free).
+		char shm[MB_PATH_MAX];
+		mb_sa_shm_path(fn, shm, sizeof(shm));
+		mb_sa_shm_attach(bwt, shm);
+		if (bwt->_sa_mmap_size == 0)
+			bwt->sa = (uint64_t *)p; // fall back to inline
+	} else if (bwt->sa_bit != (uint32_t)-1 && bwt->n_sa > 0) {
 		bwt->sa = (uint64_t *)p;
+	}
 	return bwt;
 }

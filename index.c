@@ -247,7 +247,7 @@ int main_gensa(int argc, char *argv[])
 	}
 	if (argc - o.ind < 2) return usage_gensa(stderr, sa_bit);
 	bwt = is_raw? mb_bwt_load_raw(argv[o.ind]) : mb_bwt_load(argv[o.ind]);
-	mb_bwt_gen_sa(bwt, sa_bit);
+	mb_bwt_gen_sa(bwt, sa_bit, argv[o.ind]);
 	mb_bwt_save(argv[o.ind+1], bwt);
 	mb_bwt_destroy(bwt);
 	return 0;
@@ -309,14 +309,14 @@ int main_index(int argc, char *argv[])
 		mb_bwtgen(fn_l2b, fn_bwt, block_size);
 		l2b_save(fn_l2b, l2b);
 		bwt = mb_bwt_load_raw(fn_bwt);
-		mb_bwt_gen_sa(bwt, sa_bit);
+		mb_bwt_gen_sa(bwt, sa_bit, fn_bwt);
 		mb_bwt_save(fn_bwt, bwt);
 		mb_bwt_destroy(bwt);
 		if (is_meth) {
 			l2b_save_pac_meth(fn_l2b, l2b, 1);
 			mb_bwtgen(fn_l2b, fn_meth_bwt, block_size);
 			bwt = mb_bwt_load_raw(fn_meth_bwt);
-			mb_bwt_gen_sa(bwt, sa_bit);
+			mb_bwt_gen_sa(bwt, sa_bit, fn_meth_bwt);
 			mb_bwt_save(fn_meth_bwt, bwt);
 			mb_bwt_destroy(bwt);
 		}

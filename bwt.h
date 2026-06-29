@@ -30,8 +30,9 @@ typedef struct {
 	uint32_t sa_bit; // sample rate: 1/(1<<sa_bit)
 	uint64_t n_sa;
 	uint64_t *sa;
-	void *_mmap_base;
+	void *_mmap_base;     // covers data (and inline SA in the .mbw mmap path)
 	size_t _mmap_size;
+	size_t _sa_mmap_size; // >0 iff bwt->sa points to a separately mmapped region (shm)
 } mb_bwt_t;
 
 typedef struct { size_t n, m; mb_sai_t *a; } mb_sai_v;
@@ -73,7 +74,7 @@ void mb_bwt_count_kmer(const mb_bwt_t *bwt, int32_t depth, mb_sai_t *a);
 int64_t mb_bwt_smem(const mb_bwt_t *f, uint32_t len, const uint8_t *q, int64_t x, int64_t min_len, int64_t min_occ, mb_sai_t *p);
 void mb_bwt_smem_batch(void *km, const mb_bwt_t *bwt, int32_t n, mb_smem_entry_t *a);
 
-void mb_bwt_gen_sa(mb_bwt_t *bwt, uint32_t sa_bit);
+void mb_bwt_gen_sa(mb_bwt_t *bwt, uint32_t sa_bit, const char *sa_shm_path);
 uint64_t mb_bwt_sa(const mb_bwt_t *bwt, uint64_t k);
 void mb_bwt_sa_batch(void *km, const mb_bwt_t *bwt, int64_t n, uint64_t *x);
 
