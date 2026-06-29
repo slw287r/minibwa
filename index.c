@@ -1,6 +1,12 @@
 #include <stdlib.h>
 #include <assert.h>
 #include <stdio.h>
+// Enable POSIX 2008 functions (ftruncate, etc.) under glibc's strict
+// -std=c99 mode. macOS exposes them by default; defining this there would
+// strip BSD types that Apple's headers use.
+#ifdef __linux__
+#define _POSIX_C_SOURCE 200809L
+#endif
 #include "libsais.h"
 #include "libsais64.h"
 #include "kommon.h"
