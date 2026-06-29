@@ -715,7 +715,7 @@ mb_bwt_t *mb_bwt_load_mmap(const char *fn)
 	}
 	if (vmtouch(fn, false) != 100)
 		vmtouch(fn, true);
-	m = mmap(0, (size_t)st_size, PROT_READ, MAP_PRIVATE, fd, 0);
+	m = mmap(0, (size_t)st_size, PROT_READ, MAP_SHARED, fd, 0);
 	close(fd);
 	if (m == MAP_FAILED) {
 		fprintf(stderr, "[E::%s] failed to mmap '%s': %s\n", __func__, fn, strerror(errno));
