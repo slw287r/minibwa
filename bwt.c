@@ -1,3 +1,13 @@
+// Enable POSIX 2008 functions (realpath, madvise, ftruncate) under glibc's
+// strict -std=c99 mode. macOS already exposes these by default; defining
+// _POSIX_C_SOURCE there would strip BSD types (u_int/u_short) that Apple's
+// system headers use. MADV_RANDOM is a glibc extension behind _GNU_SOURCE;
+// we skip the hint on systems that don't expose it (the kernel default is
+// already a reasonable choice for read-mostly sparse access).
+#ifdef __linux__
+#define _POSIX_C_SOURCE 200809L
+#endif
+
 #include <stdlib.h>
 #include <stdio.h>
 #include <string.h>
@@ -547,7 +557,9 @@ static int mb_sa_shm_attach(mb_bwt_t *bwt, const char *sa_path)
 	if (p == MAP_FAILED) return -1;
 	bwt->sa = (uint64_t *)p;
 	bwt->_sa_mmap_size = bytes;
+#ifdef MADV_RANDOM
 	madvise(p, bytes, MADV_RANDOM);
+#endif
 	return 0;
 }
 
@@ -602,7 +614,9 @@ static int mb_sa_shm_populate(mb_bwt_t *bwt, const char *sa_path)
 		unlink(tmp);
 		return -1;
 	}
+#ifdef MADV_RANDOM
 	madvise(p, bytes, MADV_RANDOM);
+#endif
 	return 0;
 }
 
