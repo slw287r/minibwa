@@ -9,6 +9,7 @@
 #include "kthread.h"
 #include "ketopt.h"
 #include "kseq.h"
+#include "version.h"
 KSTREAM_INIT(gzFile, gzread, 0x10000)
 
 typedef struct {
@@ -516,7 +517,7 @@ int main_map(int argc, char *argv[])
 				fprintf(stderr, "[WARNING]\033[1;31m -b only takes 'cs', 'ds' or 'MD'. Invalid values are assumed to be 'cs'.\033[0m\n");
 			}
 		} else if (c == 901) { // --version
-			puts(MB_VERSION);
+			fprintf(stdout, "%s (%s)\n", MB_VERSION, BRANCH_COMMIT);
 			exit(0);
 		} else if (c == 902) { // --help
 			return usage_map(stdout, &mo);
