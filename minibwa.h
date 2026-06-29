@@ -3,7 +3,7 @@
 
 #include <stdint.h>
 
-#define MB_VERSION "0.2-r387-dirty"
+#define MB_VERSION "0.3-r391"
 
 #define MB_F_PAF              (0x1LL)       // output in the PAF format
 #define MB_F_NO_UNMAP         (0x2LL)       // output unmapped query sequences
@@ -23,7 +23,7 @@
 #define MB_F_PRIMARY5         (0x8000LL)
 #define MB_F_NO_PAIRING       (0x10000LL)
 #define MB_F_METH             (0x20000LL)   // methylation mode
-#define MB_F_MMAP             (0x40000LL)   // use mmap to load index
+#define MB_F_MMAP             (0x40000LL) // use mmap to load index
 
 #define MB_CIGAR_MATCH      0
 #define MB_CIGAR_INS        1

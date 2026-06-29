@@ -77,7 +77,7 @@ static int usage_fastmap(FILE *fp, int min_len, int min_occ, int max_size_out, i
 	fprintf(fp, "  -s INT     min interval size [%d]\n", min_occ);
 	fprintf(fp, "  -w INT     max interval size to output coordinates [%d]\n", max_size_out);
 	fprintf(fp, "  -b INT     batch size [%d]\n", max_seq);
-	fprintf(fp, "  -z         use mmap to load reference index\n");
+	fprintf(fp, " -z use mmap to load reference index\n");
 	fprintf(fp, "  --help     print this help message\n");
 	return fp == stdout? 0 : 1;
 }

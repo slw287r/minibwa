@@ -7,7 +7,8 @@
 > This branch features:
 > * make use of `mmap` to load reference index via `-z` to share index memory across processes.
 > * Uses isa-l to accelerate decompression of gzip files.
-> * Specify maximum of XAs to output via `-h` which is hard coded as 5.
+> * ~~Specify maximum of XAs to output via `-h` which is hard coded as 5.~~
+> * `--xa=#` for `-h`
 
 ## Getting Started
 ```sh
@@ -116,6 +117,7 @@ in batch, which is faster and also supports paired-end mapping.
 
 * Minibwa does not work with noisy long reads or spliced RNA-seq reads.
 * Minibwa does not support undirectional bisulfite sequencing data.
+* Minibwa does not recognize alternate haplotypes.
 
 [zlib]: https://zlib.net/
 [mimalloc]: https://github.com/microsoft/mimalloc

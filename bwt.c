@@ -4,10 +4,10 @@
 #include <assert.h>
 #include <stdint.h>
 #include <errno.h>
+#include "vmtch.h"
 #include "kommon.h"
 #include "kalloc.h"
 #include "bwt.h"
-#include "vmtch.h"
 
 /********************
  * Basic operations *
@@ -680,11 +680,6 @@ mb_bwt_t *mb_bwt_load(const char *fn)
 	return bwt;
 }
 
-// On-disk header written by mb_bwt_save(). Mirrored here so mb_bwt_load_mmap()
-// can cast the mmap region directly instead of memcpy-ing each small field.
-// Field order and padding (4-byte magic + 4-byte sa_bit + 5 uint64_t) line up
-// with the struct's natural alignment on x86_64, so sizeof(mb_bwt_hdr_t) must
-// stay at 48.
 typedef struct {
 	char magic[4];
 	uint32_t sa_bit;
