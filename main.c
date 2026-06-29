@@ -5,6 +5,7 @@
 #include "kommon.h"
 #include "mbpriv.h"
 #include "ketopt.h"
+#include "version.h"
 
 int main_index(int argc, char *argv[]);
 int main_map(int argc, char *argv[]);
@@ -69,7 +70,7 @@ int main(int argc, char *argv[])
 	else if (strcmp(argv[1], "fastmap") == 0) ret = main_fastmap(argc-1, argv+1);
 	else if (strcmp(argv[1], "--help") == 0) return usage(stdout, 1);
 	else if (strcmp(argv[1], "version") == 0) {
-		printf("%s\n", MB_VERSION);
+		printf("%s (%s)\n", MB_VERSION, BRANCH_COMMIT);
 		return 0;
 	} else {
 		fprintf(stderr, "ERROR: unknown command '%s'\n", argv[1]);
