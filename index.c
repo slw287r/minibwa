@@ -37,13 +37,13 @@ static int64_t sa_to_bwt(void *a, int use_int32, uint8_t *seq, int64_t len, int 
 	return primary;
 }
 
-static mb_bwt_t *mb_bwt_libsais(const l2b_t *l2b, int sa_bit, int both_strand, int is_meth, int n_thread)
+static mb_bwt_t *mb_bwt_libsais(const l2b_t *l2b, int sa_bit, int both_strand, int is_meth, int n_thread, const char *fn)
 {
 	const int fs = 10000;
 	uint8_t *seq;
 	int64_t i, j, primary, len;
 	mb_bwt_t *bwt;
-	uint64_t *ssa, n_ssa;
+	uint64_t n_ssa, data_len, total;
 	void *a;
 	int use_int32;
 
@@ -93,13 +93,51 @@ static mb_bwt_t *mb_bwt_libsais(const l2b_t *l2b, int sa_bit, int both_strand, i
 		a64[0] = len;
 	}
 
+	// Layout of the destination .mbw: header (48) + encoded BWT
+	// (data_len * 8) + n_sa (8) + SA samples (n_ssa * 8). The encoded BWT
+	// and SA samples live directly in the mmap, so the writer holds zero
+	// heap copies of them.
+	data_len = mb_bwt_data_len(len);
 	n_ssa = (len + (1<<sa_bit)) >> sa_bit;
-	ssa = kom_calloc(uint64_t, n_ssa);
+	total = sizeof(mb_bwt_hdr_t) + data_len * 8 + 8 + n_ssa * 8;
+
+	int fd = open(fn, O_RDWR | O_CREAT, 0644);
+	if (fd < 0) return 0;
+	if (ftruncate(fd, (off_t)total) != 0) { close(fd); return 0; }
+	void *m = mmap(NULL, (size_t)total, PROT_READ | PROT_WRITE, MAP_SHARED, fd, 0);
+	close(fd);
+	if (m == MAP_FAILED) return 0;
+
+	mb_bwt_hdr_t *h = (mb_bwt_hdr_t *)m;
+	uint64_t *data_buf = (uint64_t *)(h + 1);
+	uint64_t *n_sa_ptr  = data_buf + data_len;
+	uint64_t *ssa       = n_sa_ptr + 1;
+
+	// SA samples are written directly into the mmap.
 	primary = sa_to_bwt(a, use_int32, seq, len, sa_bit, ssa);
 	assert(primary != -1);
 	free(a);
-	bwt = mb_bwt_init_from_raw(1, seq, len, primary);
-	bwt->sa_bit = sa_bit, bwt->n_sa = n_ssa, bwt->sa = ssa;
+
+	// Build the bwt pointing into the mmap for both data and SA samples.
+	bwt = mb_bwt_init_from_raw_inplace(1, seq, len, primary, data_buf);
+	bwt->sa_bit = sa_bit;
+	bwt->n_sa   = n_ssa;
+	bwt->sa     = ssa;
+	*n_sa_ptr   = n_ssa;
+
+	// Fill in the on-disk header.
+	memcpy(h->magic, MB_MAGIC, 4);
+	h->sa_bit  = sa_bit;
+	h->primary = (uint64_t)primary;
+	h->L2_1    = bwt->L2[1];
+	h->L2_2    = bwt->L2[2];
+	h->L2_3    = bwt->L2[3];
+	h->L2_4    = bwt->L2[4];
+
+	msync(m, (size_t)total, MS_SYNC);
+	mprotect(m, (size_t)total, PROT_READ);
+	bwt->_mmap_base = m;
+	bwt->_mmap_size = (size_t)total;
 	free(seq);
 	return bwt;
 }
@@ -218,9 +256,8 @@ int main_genbwt(int argc, char *argv[])
 	if (argc - o.ind < 2) return usage_genbwt(stderr, sa_bit, n_thread);
 	l2b = l2b_load(argv[o.ind]);
 	kom_assert(l2b, "failed to open the input file.");
-	bwt = mb_bwt_libsais(l2b, sa_bit, both_strand, 0, n_thread);
+	bwt = mb_bwt_libsais(l2b, sa_bit, both_strand, 0, n_thread, argv[o.ind+1]);
 	l2b_destroy(l2b);
-	mb_bwt_save(argv[o.ind+1], bwt);
 	mb_bwt_destroy(bwt);
 	return 0;
 }
@@ -247,8 +284,8 @@ int main_gensa(int argc, char *argv[])
 	}
 	if (argc - o.ind < 2) return usage_gensa(stderr, sa_bit);
 	bwt = is_raw? mb_bwt_load_raw(argv[o.ind]) : mb_bwt_load(argv[o.ind]);
-	mb_bwt_gen_sa(bwt, sa_bit, argv[o.ind]);
-	mb_bwt_save(argv[o.ind+1], bwt);
+	// gen_sa mmap-writes the SA into the output file directly; no save needed.
+	mb_bwt_gen_sa(bwt, sa_bit, argv[o.ind+1]);
 	mb_bwt_destroy(bwt);
 	return 0;
 }
@@ -309,15 +346,14 @@ int main_index(int argc, char *argv[])
 		mb_bwtgen(fn_l2b, fn_bwt, block_size);
 		l2b_save(fn_l2b, l2b);
 		bwt = mb_bwt_load_raw(fn_bwt);
+		// gen_sa mmap-writes the SA into fn_bwt; no save needed.
 		mb_bwt_gen_sa(bwt, sa_bit, fn_bwt);
-		mb_bwt_save(fn_bwt, bwt);
 		mb_bwt_destroy(bwt);
 		if (is_meth) {
 			l2b_save_pac_meth(fn_l2b, l2b, 1);
 			mb_bwtgen(fn_l2b, fn_meth_bwt, block_size);
 			bwt = mb_bwt_load_raw(fn_meth_bwt);
 			mb_bwt_gen_sa(bwt, sa_bit, fn_meth_bwt);
-			mb_bwt_save(fn_meth_bwt, bwt);
 			mb_bwt_destroy(bwt);
 		}
 #else
@@ -326,12 +362,10 @@ int main_index(int argc, char *argv[])
 #endif
 	} else {
 		l2b_save(fn_l2b, l2b);
-		bwt = mb_bwt_libsais(l2b, sa_bit, 1, 0, n_thread);
-		mb_bwt_save(fn_bwt, bwt);
+		bwt = mb_bwt_libsais(l2b, sa_bit, 1, 0, n_thread, fn_bwt);
 		mb_bwt_destroy(bwt);
 		if (is_meth) {
-			bwt = mb_bwt_libsais(l2b, sa_bit, 1, 1, n_thread);
-			mb_bwt_save(fn_meth_bwt, bwt);
+			bwt = mb_bwt_libsais(l2b, sa_bit, 1, 1, n_thread, fn_meth_bwt);
 			mb_bwt_destroy(bwt);
 		}
 	}

@@ -37,6 +37,15 @@ typedef struct {
 
 typedef struct { size_t n, m; mb_sai_t *a; } mb_sai_v;
 
+// On-disk header of the .mbw file. Public so the libsais index builder in
+// index.c can lay it out in the mmap'd file.
+typedef struct {
+	char magic[4];
+	uint32_t sa_bit;
+	uint64_t primary;
+	uint64_t L2_1, L2_2, L2_3, L2_4; // on disk: bwt->L2[1..4]
+} mb_bwt_hdr_t;
+
 typedef struct {
 	// input before calling
 	int32_t min_len, min_occ;
@@ -74,7 +83,14 @@ void mb_bwt_count_kmer(const mb_bwt_t *bwt, int32_t depth, mb_sai_t *a);
 int64_t mb_bwt_smem(const mb_bwt_t *f, uint32_t len, const uint8_t *q, int64_t x, int64_t min_len, int64_t min_occ, mb_sai_t *p);
 void mb_bwt_smem_batch(void *km, const mb_bwt_t *bwt, int32_t n, mb_smem_entry_t *a);
 
-void mb_bwt_gen_sa(mb_bwt_t *bwt, uint32_t sa_bit, const char *sa_shm_path);
+void mb_bwt_gen_sa(mb_bwt_t *bwt, uint32_t sa_bit, const char *fn);
+
+// Internal helpers used by index.c's libsais builder to lay out the .mbw
+// file directly in an mmap. Encoded BWT length in uint64_t units.
+uint64_t mb_bwt_data_len(uint64_t len);
+// Like mb_bwt_init_from_raw, but writes into a caller-provided data buffer
+// (which may live inside an mmap).
+mb_bwt_t *mb_bwt_init_from_raw_inplace(int is_byte, const void *raw_, uint64_t len, uint64_t primary, uint64_t *data_buf);
 uint64_t mb_bwt_sa(const mb_bwt_t *bwt, uint64_t k);
 void mb_bwt_sa_batch(void *km, const mb_bwt_t *bwt, int64_t n, uint64_t *x);
 
