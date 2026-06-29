@@ -7,6 +7,8 @@
 #include "kalloc.h"
 #include "ksw2.h"
 
+#define max_cnt_heap 8
+
 static inline int mb_insert_dir(const mb_hit_t *h0, const mb_hit_t *h1, int64_t *dist)
 {
 	int64_t p0, p1;
@@ -40,7 +42,6 @@ static const mb_hit_t *mb_select_unique_se(int32_t n_hit, const mb_hit_t *hit)
 
 static int32_t mb_hit_sum_score(void *km, int32_t n_hit, const mb_hit_t *hit)
 {
-	static const int32_t max_cnt_heap = 8;
 	int32_t i, k, n_pri, sc, qe;
 	uint64_t *a, aa[max_cnt_heap];
 	for (i = 0, n_pri = sc = 0; i < n_hit; ++i) // precalculate size
