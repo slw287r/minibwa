@@ -35,7 +35,7 @@ ifeq ($(mimalloc),0)
 endif
 
 ifeq ($(ARCH), x86_64)
-	CFLAGS+=-msse4.2 -mpopcnt
+	CFLAGS+=-msse4.2 -mpopcnt -static
 endif
 
 .SUFFIXES:.c .o
@@ -54,6 +54,7 @@ libminibwa.a:$(LOBJS)
 
 minibwa:libminibwa.a $(MALLOC_O) $(AOBJS) main.o
 		$(CC) $(CFLAGS) $(LDFLAGS) $(MALLOC_O) $(AOBJS) main.o -o $@ -L. -lminibwa $(LIBS)
+		strip $@
 
 clean:
 		rm -fr *.o a.out $(PROG) *~ *.a *.dSYM
