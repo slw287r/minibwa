@@ -115,7 +115,7 @@ int mb_fmt_sam_hdr(kstring_t *str, const l2b_t *idx, const char *rg, const char 
 	if (ver) kom_sprintf_lite(str, "\tVN:%s", ver);
 	if (argc > 1) {
 		kom_sprintf_lite(str, "\tCL:minibwa");
-		for (i = 1; i < argc; ++i)
+		for (i = 0; i < argc; ++i)
 			kom_sprintf_lite(str, " %s", argv[i]);
 	}
 	kom_sprintf_lite(str, "\n");
@@ -325,6 +325,7 @@ void mb_fmt_sam(void *km, kstring_t *s, const l2b_t *l2b, const mb_bseq1_t *t, i
 				for (i = 0; i < n_h; ++i)
 					if (i != r - h && h[i].parent == r - h && h[i].p->dp_max >= (double)opt->xa_ratio * r->p->dp_max)
 						++n_xa;
+				if (n_xa > 0) kom_sprintf_lite(s, "\tn2:i:%d", n_xa);
 				if (n_xa > 0 && n_xa <= opt->xa_max) {
 					kom_sprintf_lite(s, "\tXA:Z:");
 					for (i = 0; i < n_h; ++i) {
